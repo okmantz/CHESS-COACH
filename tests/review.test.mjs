@@ -1,0 +1,13 @@
+import { nodeEngine } from '../scripts/node-engine.mjs';
+import { parseGame, reviewGame, fmtEval } from '../js/analysis.js';
+const pgn = '1. d4 d5 2. Nf3 Nf6 3. e3 e6 4. Bd3 Be7 5. O-O O-O 6. Nbd2 Nbd7 7. Bxh7+ Nxh7 8. Nb3 b6 9. Qe2 Bb7 10. Ne5 Nxe5 11. dxe5 c5 12. Rd1 Qc7 0-1';
+const g = parseGame(pgn);
+const e = nodeEngine();
+const t0 = Date.now();
+const r = await reviewGame(e, g, { depth: 12 });
+console.log('time', Date.now()-t0, 'ms; opening', r.opening);
+for (const m of r.moves) console.log(`${m.moveNo}${m.color==='w'?'.':'...'} ${m.san}`.padEnd(14), m.cls.padEnd(10), 'loss', m.loss.toFixed(1).padStart(5), 'best', m.bestSan, fmtEval(m.evalBefore), '->', fmtEval(m.evalAfter), m.tags.join(','));
+console.log(JSON.stringify(r.summary.w.counts), r.summary.w.acc, r.summary.b.acc);
+const bad = r.moves.find(m=>m.coach && m.coach.kind==='mistake');
+console.log(JSON.stringify(r.moves.filter(m=>m.coach).map(m=>m.coach), null, 1).slice(0,3500));
+e.terminate();
