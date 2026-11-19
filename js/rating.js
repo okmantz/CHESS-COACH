@@ -20,15 +20,19 @@ export function updateRating(r, gamesPlayed, oppElo, score) {
   return { rating: next, delta: next - r, expected: e, k };
 }
 
+// Rank titles line up with the ten opponents on the 600 -> 2600 ladder.
 export const RANKS = [
-  { min: 0, name: 'Novice', color: '#9aa0a6' },
-  { min: 600, name: 'Beginner', color: '#8bc34a' },
-  { min: 900, name: 'Casual', color: '#4fc3f7' },
-  { min: 1200, name: 'Intermediate', color: '#7e9cf5' },
-  { min: 1500, name: 'Club Player', color: '#b388ff' },
-  { min: 1800, name: 'Advanced', color: '#ffb74d' },
-  { min: 2100, name: 'Expert', color: '#ff8a65' },
-  { min: 2400, name: 'Master', color: '#f06292' },
+  { min: 0, name: 'Newcomer', color: '#9aa0a6' },
+  { min: 600, name: 'Beginner', color: '#34d399' },
+  { min: 800, name: 'Novice', color: '#38bdf8' },
+  { min: 1000, name: 'Amateur', color: '#818cf8' },
+  { min: 1200, name: 'Casual', color: '#f87171' },
+  { min: 1400, name: 'Intermediate', color: '#c084fc' },
+  { min: 1600, name: 'Advanced', color: '#60a5fa' },
+  { min: 1800, name: 'Expert', color: '#fbbf24' },
+  { min: 2000, name: 'Master', color: '#4ade80' },
+  { min: 2200, name: 'Candidate Master', color: '#cbd5e1' },
+  { min: 2600, name: 'Grandmaster', color: '#f5c451' },
 ];
 
 export function rankOf(r) {

@@ -16,10 +16,11 @@ export function defaults() {
     version: 1,
     created: Date.now(),
     onboarded: false,
-    profile: { name: 'Player', avatar: { kind: 'emoji', value: '♞' }, color: '#7c9cff', country: '', bio: '' },
+    profile: { name: 'Player', avatar: { kind: 'portrait', value: 'knight' }, color: '#7c9cff', country: '', bio: '' },
     settings: {
       board: 'classic', theme: 'dark', coords: true, sound: true, highlights: true, legalDots: true, autoQueen: false,
       animations: true, analysisDepth: 'standard', defaultTime: 'unlimited', confirmResign: true, showEvalBar: true,
+      pieceSet: 'classic', highlight: 'gold', boardFrame: 'soft', indicator: 'dot', textSize: 'm', reduceMotion: false, botChat: true,
     },
     rating: { value: START_RATING, games: 0, peak: START_RATING, history: [] },
     games: [],
@@ -27,6 +28,7 @@ export function defaults() {
     puzzles: { rating: 800, solved: 0, attempts: 0, streak: 0, bestStreak: 0, themes: {}, seen: {}, rush: { best: 0, history: [] } },
     lessons: { openings: {}, endgames: {}, middlegames: {}, basics: {}, tactics: {}, strategy: {} },
     coachPlay: { games: 0, level: 0, mode: 'guided', habits: {}, lastFocus: null },
+    ladder: { passed: 0, results: {} },
     plan: { date: null, items: [], streak: 0, lastCompleted: null },
     activity: {},
   };
@@ -48,6 +50,13 @@ export function load() {
   if (raw) { try { merge(state, JSON.parse(raw)); } catch (e) { console.warn('Could not parse saved data', e); } }
   // one-time migration: board coordinates (a-h, 1-8) are always shown unless the player switches them off again
   if (state.settings.coordsV2 !== true) { state.settings.coords = true; state.settings.coordsV2 = true; }
+  // migration: emoji avatars (v1) become portrait / emblem avatars
+  const av = state.profile && state.profile.avatar;
+  if (av && av.kind === 'emoji') {
+    const map = { '♞': ['portrait', 'knight'], '🦁': ['portrait', 'king'], '🐺': ['portrait', 'wolf'], '♜': ['emblem', 'rook:ember'], '♝': ['emblem', 'bishop:forest'], '♛': ['emblem', 'queen:violet'], '♚': ['emblem', 'king:gold'], '♟': ['emblem', 'pawn:steel'] };
+    const m = map[av.value] || ['emblem', 'knight:ocean'];
+    state.profile.avatar = { kind: m[0], value: m[1] };
+  }
   return state;
 }
 

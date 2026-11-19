@@ -2,6 +2,8 @@ import * as store from './store.js';
 import { h, $, icon, avatar, toast, modal } from './ui.js';
 import { rankOf } from './rating.js';
 import { setSoundEnabled } from './sound.js';
+import { applySkins, ACCENTS } from './skins.js';
+import { avatarPicker } from './avatars.js';
 import { getEngine, stopEngine } from './engine-host.js';
 
 const NAV = [
@@ -29,15 +31,14 @@ let routeToken = 0;
 
 function applyTheme() {
   const s = store.get();
-  document.documentElement.dataset.theme = s.settings.theme;
-  document.documentElement.dataset.board = s.settings.board;
+  applySkins(s.settings, s.profile);
   const c = s.profile.color || '#7c9cff';
   const root = document.documentElement.style;
   root.setProperty('--accent', c);
   root.setProperty('--accent-soft', c + '24');
   const lum = (() => { const n = parseInt(c.slice(1), 16); const r = n >> 16, g = (n >> 8) & 255, b = n & 255; return (0.299 * r + 0.587 * g + 0.114 * b) / 255; })();
   root.setProperty('--accent-ink', lum > 0.62 ? '#0b1020' : '#ffffff');
-  document.querySelector('meta[name=theme-color]').setAttribute('content', s.settings.theme === 'light' ? '#f3f5f9' : '#0e1015');
+  document.querySelector('meta[name=theme-color]').setAttribute('content', s.settings.theme === 'light' ? '#f3f5f9' : s.settings.theme === 'amoled' ? '#000000' : '#0e1015');
   setSoundEnabled(s.settings.sound);
 }
 
@@ -80,6 +81,7 @@ async function route() {
   let page = 'home', params = [];
   for (const [re, name] of ROUTES) { const m = re.exec(path); if (m) { page = name; params = m.slice(1); break; } }
   if (cleanup) { try { cleanup(); } catch (e) { console.warn(e); } cleanup = null; }
+  document.body.classList.remove('in-game');
   stopEngine();
   const view = $('#view');
   view.replaceChildren(h('div.page', h('div.row', { style: { justifyContent: 'center', padding: '60px 0' } }, h('div.spin'))));
@@ -101,15 +103,14 @@ async function route() {
 function onboarding() {
   const s = store.get();
   if (s.onboarded) return;
-  const emojis = ['♞', '♜', '♝', '♛', '♚', '♟', '🦉', '🦊', '🐺', '🦁', '🐉', '🚀'];
-  let name = s.profile.name === 'Player' ? '' : s.profile.name, av = emojis[0];
+  let name = s.profile.name === 'Player' ? '' : s.profile.name, av = s.profile.avatar;
   const input = h('input', { type: 'text', placeholder: 'Your name', maxlength: 24, value: name, oninput: (e) => { name = e.target.value; } });
-  const grid = h('div.avatar-grid', emojis.map((e) => h('button', { class: e === av ? 'active' : '', onclick: (ev) => { av = e; grid.querySelectorAll('button').forEach((b) => b.classList.remove('active')); ev.currentTarget.classList.add('active'); } }, e)));
+  const grid = avatarPicker(av, (a) => { av = a; });
   const m = modal(h('div.col',
     h('div.center', h('div.brand-mark', { style: { width: '56px', height: '56px', fontSize: '30px', margin: '0 auto 10px', borderRadius: '16px' } }, '♞'), h('h2', 'Welcome to Chess Coach'), h('p.muted', 'Play, analyze and learn with Stockfish — and a coach that studies your own games to build a personal training plan.')),
-    h('div', h('label.field', 'What should we call you?'), input), h('div', h('label.field', 'Pick an avatar'), grid),
-    h('div.card.flat.small', h('b', 'Your rating starts at 600 (Beginner). '), 'Play a few games against the computer and it adjusts quickly and accurately as you win, draw and lose.'),
-    h('button.btn.primary.big.block', { onclick: () => { store.update((st) => { st.onboarded = true; st.profile.name = name.trim() || 'Player'; st.profile.avatar = { kind: 'emoji', value: av }; }); store.flush(); m.close(); refreshChrome(); } }, 'Start playing')),
+    h('div', h('label.field', 'What should we call you?'), input), h('div', h('label.field', 'Pick an avatar'), h('div.onboard-avatars', grid)),
+    h('div.card.flat.small', h('b', 'Your road starts at 600 (Beginner). '), 'Ten opponents, each with their own personality, take you from 600 to 2600 — and your coach helps with every step.'),
+    h('button.btn.primary.big.block', { onclick: () => { store.update((st) => { st.onboarded = true; st.profile.name = name.trim() || 'Player'; st.profile.avatar = av; }); store.flush(); m.close(); refreshChrome(); } }, 'Start playing')),
     { dismissible: false });
 }
 
