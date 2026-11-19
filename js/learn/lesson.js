@@ -239,7 +239,7 @@ export function lessonPlayer(root, ctx, { track, lesson, back, backLabel = 'Lear
       if (linePos >= lineSteps.length || chess.isGameOver()) {
         let msg = rightText;
         if (!msg) { try { msg = `${mv.san} — it ${describeMove(moveFeatures(probe.fen() && st.fen ? new Chess(st.fen).fen() : probe.fen(), mv.from + mv.to + (mv.promotion || '')), mv.san) || 'is the right idea'}.`; } catch (e) { msg = `${mv.san} is the move.`; } }
-        complete(`✓ ${msg}${st.after ? '\n' + st.after : ''}`);
+        complete(`✓ ${msg}${st.after ? '\n' + st.after : ''}${st.why ? '\n💡 Why it works: ' + st.why : ''}`);
         return true;
       }
       // the opponent replies automatically, then the learner continues
@@ -342,7 +342,7 @@ export function lessonPlayer(root, ctx, { track, lesson, back, backLabel = 'Lear
     if (!missing.length && !wrong.length) {
       const m = {}; ans.forEach((s) => { m[s] = 'good'; }); if (st.piece) m[st.piece] = 'warn';
       board.setMarks(m); board.setSquareMode(null);
-      complete(`✓ ${st.right || 'Exactly right!'}`);
+      complete(`✓ ${st.right || 'Exactly right!'}${st.why ? '\n💡 Why it works: ' + st.why : ''}`);
       return;
     }
     sfx('bad'); wrongCount++;
@@ -357,7 +357,7 @@ export function lessonPlayer(root, ctx, { track, lesson, back, backLabel = 'Lear
     const ans = answerSquares(st);
     board.setSquareMode((sq) => {
       if (solved.has(idx)) return;
-      if (ans.includes(sq)) { board.setMarks({ [sq]: 'good' }); board.setSquareMode(null); complete(`✓ ${st.right || `Yes, ${sq}.`}`); }
+      if (ans.includes(sq)) { board.setMarks({ [sq]: 'good' }); board.setSquareMode(null); complete(`✓ ${st.right || `Yes, ${sq}.`}${st.why ? '\n💡 Why it works: ' + st.why : ''}`); }
       else { sfx('bad'); wrongCount++; board.setMarks({ [sq]: 'bad' }); say(st.wrong && st.wrong[sq] ? st.wrong[sq] : `That is ${sq}. ${st.hint || 'Try again.'}`, 'bad'); setTimeout(() => { if (alive && !solved.has(idx)) board.setMarks({}); }, 800); if (wrongCount >= 3) showAnswer(); }
     });
   }
