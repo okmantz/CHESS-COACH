@@ -1,3 +1,4 @@
+import { STRATEGY as STRATEGY_LIST } from './strategy.js';
 // Tactics course. Positions are validated by tests/content.test.mjs and verified with Stockfish by scripts/verify-content.mjs.
 export const TACTICS_PARTS = ['Win material', 'Attack the king', 'Think like a tactician'];
 
@@ -133,5 +134,6 @@ export const TACTICS = [
   },
 ];
 
-export const STRATEGY = [];
+export { STRATEGY, STRATEGY_PARTS } from './strategy.js';
+export const strategyById = (id) => STRATEGY_LIST.find((t) => t.id === id);
 export const tacticById = (id) => TACTICS.find((t) => t.id === id);
