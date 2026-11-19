@@ -174,9 +174,16 @@ self.addEventListener('activate', (e) => {
 });
 self.addEventListener('fetch', (e) => {
   const req = e.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
-  e.respondWith(caches.match(req, { ignoreSearch: true }).then((hit) => hit || fetch(req).then((res) => {
+  const url = new URL(req.url);
+  if (req.method !== 'GET' || url.origin !== location.origin) return;
+  // Code (html/js/css/json) is network-first so a deploy is never half-old/half-new; heavy assets are cache-first.
+  const code = req.mode === 'navigate' || /\.(js|mjs|css|json|html)$/.test(url.pathname) || url.pathname.endsWith('/');
+  const fromCache = () => caches.open(VERSION).then((c) => c.match(req, { ignoreSearch: true }));
+  const fromNet = () => fetch(req, code ? { cache: 'no-cache' } : undefined).then((res) => {
     if (res.ok) { const copy = res.clone(); caches.open(VERSION).then((c) => c.put(req, copy)); }
     return res;
-  }).catch(() => (req.mode === 'navigate' ? caches.match('./') : Response.error()))));
+  });
+  e.respondWith(code
+    ? fromNet().catch(() => fromCache().then((hit) => hit || (req.mode === 'navigate' ? caches.open(VERSION).then((c) => c.match('./')) : Response.error())))
+    : fromCache().then((hit) => hit || fromNet().catch(() => Response.error())));
 });
