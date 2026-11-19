@@ -2,6 +2,7 @@
 // Everything here is heuristic and deliberately explainable: it feeds the coach's wording and the
 // mistake taxonomy. Engine evaluations (not these heuristics) decide *whether* a move was bad.
 import { Chess } from '../vendor/chess.js';
+import { see } from './see.js';
 
 export const VAL = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
 export const NAMES = { p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', k: 'king' };
@@ -138,9 +139,14 @@ export function moveFeatures(fen, uci) {
 
   // --- free piece / winning exchange
   if (mv.captured && mv.captured !== 'p') {
-    const defBefore = chBefore.attackers(to, enemy).filter((x) => x !== to);
-    if (!defBefore.length) themes.add('freePiece');
-    else if (VAL[mv.captured] > movedVal) themes.add('winsExchange');
+    // judged by what can LEGALLY be recaptured (a pinned defender does not count) and by the full exchange, not by "is it defended?"
+    const recapture = ch.moves({ verbose: true }).some((x) => x.to === to && x.captured);
+    if (!recapture) themes.add('freePiece');
+    else {
+      let back = 0;
+      try { back = Math.max(0, see(ch.fen(), to, enemy)); } catch (e) { back = movedVal; }
+      if (VAL[mv.captured] - back > 0) themes.add('winsExchange');
+    }
   }
 
   // --- mate patterns

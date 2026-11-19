@@ -29,6 +29,7 @@ export function defaults() {
     lessons: { openings: {}, endgames: {}, middlegames: {}, basics: {}, tactics: {}, strategy: {} },
     coachPlay: { games: 0, level: 0, mode: 'guided', habits: {}, lastFocus: null },
     ladder: { passed: 0, results: {} },
+    crowns: {},
     plan: { date: null, items: [], streak: 0, lastCompleted: null },
     activity: {},
   };

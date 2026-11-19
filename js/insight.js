@@ -3,6 +3,7 @@
 // chess.js — no engine needed — so it can run instantly, for every move, in lessons, reviews and live games.
 import { Chess } from '../vendor/chess.js';
 import { boardMap, pieceTargets, VAL, NAMES, findKing, kingInfo, moveFeatures, fileOf, rankOf, sq as mkSq } from './themes.js';
+import { see } from './see.js';
 
 const opp = (c) => (c === 'w' ? 'b' : 'w');
 const CENTER = ['d4', 'e4', 'd5', 'e5'];
@@ -102,17 +103,22 @@ export function moveInsight(fen, uci) {
       if (seenB.has(key) && !mv.captured) continue;
       const defended = after.attackers(key, enemy).filter((x) => x !== to).length > 0;
       if (t.piece.type === 'p' && piece !== 'p' && defended) continue;
-      ins.attacks.push({ square: key, type: t.piece.type, undefended: !defended, value: VAL[t.piece.type] });
+      // would capturing it really win material once recaptures are counted? (legal captures only, x-rays included)
+      let wins = false;
+      try { wins = see(after.fen(), key, mover, { from: to }) > 0; } catch (e) { wins = !defended; }
+      ins.attacks.push({ square: key, type: t.piece.type, undefended: !defended, wins, value: VAL[t.piece.type] });
     } else if (t.piece.color === mover && t.piece.type !== 'k' && !seenB.has(key)) ins.defends.push({ square: key, type: t.piece.type });
   }
 
-  // is the moved piece safe where it landed?
+  // is the moved piece safe where it landed? An exchange count, not a guess: attacked twice and defended once is NOT safe.
   const attackers = after.attackers(to, enemy);
-  const defenders = after.attackers(to, mover).filter((x) => x !== to);
-  const cheap = attackers.filter((a) => mapA[a] && mapA[a].type !== 'k' && VAL[mapA[a].type] < VAL[piece]);
   ins.attackedBy = attackers.map((a) => ({ square: a, type: mapA[a].type }));
-  ins.safe = !attackers.length || (!cheap.length && defenders.length > 0) || (piece === 'k' && !attackers.length);
   if (piece === 'k') ins.safe = !attackers.length;
+  else {
+    let lost = 0;
+    try { lost = see(after.fen(), to, enemy); } catch (e) { lost = 0; }
+    ins.safe = lost <= 0;
+  }
 
   // file / rank effects
   if (piece === 'r' || piece === 'q') {
@@ -160,8 +166,8 @@ export function narrateInsight(ins, { phase = 'middlegame', max = 4 } = {}) {
   else if (T.includes('skewer') && ins.feats && ins.feats.info.skewer) out.push(`It skewers: the piece on ${ins.feats.info.skewer.front} must move and the one behind it on ${ins.feats.info.skewer.behind} is exposed.`);
   else if (T.includes('discovered') && ins.feats && ins.feats.info.discovered) out.push(`Moving this piece uncovers an attack by the piece on ${ins.feats.info.discovered.slider} against ${ins.feats.info.discovered.target}.`);
   else if (ins.attacks.length) {
-    const a = ins.attacks.slice().sort((x, y) => y.value - x.value)[0];
-    out.push(`It attacks the ${nm(a.type)} on ${a.square}${a.undefended ? ' — and nothing is protecting it' : ''}.`);
+    const a = ins.attacks.slice().sort((x, y) => (y.wins - x.wins) || (y.value - x.value))[0];
+    out.push(`It attacks the ${nm(a.type)} on ${a.square}${a.undefended ? ' — and nothing is protecting it' : a.wins ? ' — and taking it would win material even after the recapture' : ''}.`);
   }
   if (ins.threatensMate && !T.includes('mate') && !T.includes('check')) out.push(`It creates a real threat: checkmate on ${ins.mateSquare} next move.`);
   if (ins.openFile) out.push(`The ${P} takes the open ${ins.openFile}-file, with no pawns to block it.`);
@@ -205,11 +211,13 @@ export function threatsAgainst(fen, victim, { limit = 4 } = {}) {
     if (!f) continue;
     const T = f.themes;
     const valCap = m.captured ? VAL[m.captured] : 0;
-    const mover = VAL[m.piece];
-    const defended = m.captured ? ch.attackers(m.to, victim).length > 0 : false;
     if (T.includes('mate')) { out.push({ kind: 'mate', san: m.san, text: `${m.san} would be checkmate.`, squares: [m.to], severity: 100 }); continue; }
-    if (m.captured && m.captured !== 'p' && (!defended || valCap > mover)) {
-      out.push({ kind: 'material', san: m.san, text: `${m.san} would win your ${nm(m.captured)} on ${m.to}${defended ? ' (it is worth more than the piece taking it)' : ' (it is not protected)'}.`, squares: [m.to], severity: 50 + valCap * 4 - (defended ? 8 : 0) });
+    // a capture is a threat only if it nets material after every recapture (pins, x-rays and the king's limits included)
+    const net = m.captured && !m.flags.includes('e') ? seeSafe(ch.fen(), m.to, attacker, m.from) : 0;
+    if (m.captured && net > 0) {
+      const defended = ch.attackers(m.to, victim).length > 0;
+      const what = m.captured === 'p' ? 'pawn' : nm(m.captured);
+      out.push({ kind: 'material', san: m.san, text: `${m.san} would win your ${what} on ${m.to}${defended ? ' (the recapture would not make up for it)' : ' (it is not protected)'}.`, squares: [m.to], severity: (m.captured === 'p' ? 28 : 50) + net * 4 + valCap });
     } else if (T.includes('fork') && f.info.targets && f.info.targets.length >= 2) {
       out.push({ kind: 'fork', san: m.san, text: `${m.san} would fork ${f.info.targets.map((t) => `your ${nm(t.type)} on ${t.square}`).join(' and ')}.`, squares: f.info.targets.map((t) => t.square), severity: 60 });
     } else if ((T.includes('pin') || T.includes('skewer')) && (f.info.pin || f.info.skewer)) {
@@ -224,7 +232,14 @@ export function threatsAgainst(fen, victim, { limit = 4 } = {}) {
   return out.sort((a, b) => b.severity - a.severity).filter((t) => (seen.has(t.san) ? false : (seen.add(t.san), true))).slice(0, limit);
 }
 
-/** Your own pieces that are attacked and either unprotected or attacked by something cheaper. */
+function seeSafe(fen, square, by, from) {
+  try { return see(fen, square, by, from ? { from } : {}); } catch (e) { return 0; }
+}
+
+/**
+ * Your own pieces that the opponent could win by capturing — decided by a full exchange count (defenders, x-rays, pins), not by
+ * "is it attacked and unprotected". A defended piece attacked twice IS listed; a defended piece attacked only by a bigger piece is NOT.
+ */
 export function hangingPieces(fen, color) {
   const ch = safeChess(fen);
   if (!ch) return [];
@@ -235,12 +250,12 @@ export function hangingPieces(fen, color) {
     if (p.color !== color || p.type === 'k') continue;
     const att = ch.attackers(s, opp(color));
     if (!att.length) continue;
+    const gain = seeSafe(fen, s, opp(color));
+    if (gain <= 0) continue;
     const def = ch.attackers(s, color).filter((x) => x !== s);
-    const minAtt = Math.min(...att.map((a) => (map[a].type === 'k' ? 99 : VAL[map[a].type])));
-    const worth = p.type === 'p' ? 1 : VAL[p.type];
-    if (!def.length ? (att.some((a) => map[a].type !== 'k') || att.length > 0) : minAtt < worth) res.push({ square: s, type: p.type, undefended: !def.length, attackers: att });
+    res.push({ square: s, type: p.type, undefended: !def.length, attackers: att, gain });
   }
-  return res.sort((a, b) => VAL[b.type] - VAL[a.type]);
+  return res.sort((a, b) => VAL[b.type] - VAL[a.type] || b.gain - a.gain);
 }
 
 /** Enemy pieces that YOU could win right now (undefended or attacked by something cheaper). */

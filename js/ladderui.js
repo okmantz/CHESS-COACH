@@ -2,6 +2,7 @@
 // per-rung missions, and a compact progress strip. Pure presentation: the rules live in ladder.js.
 import { h, icon, progress } from './ui.js';
 import { avatarEl } from './avatars.js';
+import { withCrowns } from './crowns.js';
 import { TIERS, tier, currentRung, isPassed, statusLine, progressFor, resultOf } from './ladder.js';
 
 const portrait = (t, size, opts = {}) => avatarEl({ kind: 'portrait', value: t.avatar }, size, { square: true, ...opts });
@@ -16,7 +17,7 @@ export function opponentPicker(cfg, { onChange, rating = 0 } = {}) {
       class: [t.n === cfg.level ? 'active' : '', isPassed(t.n) ? 'passed' : '', t.n === cur ? 'current' : ''].join(' '), style: { '--tier': t.color },
       role: 'option', 'aria-selected': t.n === cfg.level ? 'true' : 'false', 'aria-label': `${t.who}, ${t.name}, about ${t.elo}`,
       onclick: () => { cfg.level = t.n; draw(); onChange && onChange(t.n); },
-    }, portrait(t, 64), h('b', String(t.elo)), isPassed(t.n) ? h('i.opp-badge.ok', icon('check', 11)) : t.n === cur ? h('i.opp-badge.cur', icon('star', 11)) : null)));
+    }, withCrowns(portrait(t, 64), t.n, { size: 10 }), h('b', String(t.elo)), isPassed(t.n) ? h('i.opp-badge.ok', icon('check', 11)) : t.n === cur ? h('i.opp-badge.cur', icon('star', 11)) : null)));
     detail.replaceChildren(tierDetail(cfg.level, rating));
   };
   draw();
@@ -30,7 +31,7 @@ export function tierDetail(n, rating = 0) {
   const diff = rating ? t.elo - rating : 0;
   const hint = !rating ? '' : diff > 250 ? ' A big step up from your rating — expect a tough game.' : diff < -350 ? ' Much weaker than you — good for practising a plan.' : ' A good match for your level.';
   return h('div.opp-info', { style: { '--tier': t.color } },
-    h('div.row.nowrapr', portrait(t, 56, { ring: t.color }), h('div.grow', h('div.row.tight', h('b.opp-name', t.who), h('span.tier-tag', t.name), h('span.tag', `~${t.elo}`)), h('div.small.muted', t.blurb + hint))),
+    h('div.row.nowrapr', withCrowns(portrait(t, 56, { ring: t.color }), t.n, { size: 10 }), h('div.grow', h('div.row.tight', h('b.opp-name', t.who), h('span.tier-tag', t.name), h('span.tag', `~${t.elo}`)), h('div.small.muted', t.blurb + hint))),
     h('div.xs.faint.mt', statusLine(n)));
 }
 
@@ -51,7 +52,7 @@ export function roadMap({ onPlay, selected = null } = {}) {
     root.replaceChildren(...TIERS.map((t) => {
       const pf = progressFor(t.n), r = resultOf(t.n), done = isPassed(t.n), isCur = t.n === cur, isOpen = open.has(t.n);
       const head = h('button.road-head', { onclick: () => { if (isOpen) open.delete(t.n); else open.add(t.n); draw(); }, 'aria-expanded': String(isOpen) },
-        portrait(t, 46, { ring: done ? '#5fc88f' : isCur ? t.color : null }),
+        withCrowns(portrait(t, 46, { ring: done ? '#5fc88f' : isCur ? t.color : null }), t.n, { size: 8 }),
         h('div.grow', h('div.row.tight', h('b', `${t.elo} · ${t.name}`), isCur ? h('span.tag.accent', 'You are here') : null, done ? h('span.tag.good', 'Passed') : null), h('div.xs.muted', `${t.who} — ${statusLine(t.n)}`)),
         icon('right', 16));
       const body = !isOpen ? null : h('div.road-body',

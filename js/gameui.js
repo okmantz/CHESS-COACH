@@ -8,6 +8,7 @@ import { h, icon, modal } from './ui.js';
 import { playerBar, moveList } from './components.js';
 import { portraitSrc } from './avatars.js';
 import { COACH } from './personas.js';
+import { crownInfo, crownRow } from './crowns.js';
 
 export const isMobile = () => window.matchMedia('(max-width: 959px)').matches;
 
@@ -16,6 +17,7 @@ export function opponentStage(L, { color, chat = true }) {
   const pb = playerBar({ name: `${L.who}`, rating: L.elo, avatarEl: null, color });
   const tag = h('span.tier-tag', L.name);
   pb.el.querySelector('.pname').append(tag);
+  { const ci = crownInfo(L.n); if (ci.played) pb.el.querySelector('.pname').append(h('span.crown-inline', crownRow(ci.best, { size: 11 }))); }
   const img = h('img', { src: portraitSrc(L.avatar), alt: `${L.who}, ${L.name}`, draggable: false });
   const peek = h('div.stage-peek.silhouette', { style: { '--tier': L.color } }, img);
   const bubble = h('div.bubble.hidden', { role: 'status', 'aria-live': 'polite' });
@@ -40,6 +42,21 @@ export function opponentStage(L, { color, chat = true }) {
   };
 }
 
+/**
+ * On a phone the page scrolls: if a new coach comment lands below the visible part of the screen (the board fills most of it),
+ * bring it into view so a hint or a warning is never missed. Scrolls only as far as needed and only when the comment is hidden.
+ */
+export function revealOnPhone(node) {
+  if (!isMobile() || typeof requestAnimationFrame !== 'function') return;
+  requestAnimationFrame(() => {
+    try {
+      const r = node.getBoundingClientRect();
+      const vh = window.innerHeight || document.documentElement.clientHeight;
+      if (r.height && (r.top > vh - 56 || r.bottom > vh + 4)) node.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    } catch (e) { /* ignore */ }
+  });
+}
+
 /** The coach's feed: newest first, internal scroll, never pushes the board off-screen. */
 export function coachDock({ title = COACH.who, open = true } = {}) {
   const img = h('img', { src: portraitSrc(COACH.avatar), alt: 'Your coach', draggable: false });
@@ -62,11 +79,12 @@ export function coachDock({ title = COACH.who, open = true } = {}) {
       feed.prepend(b);
       while (feed.children.length > MAX) feed.lastChild.remove();
       feed.scrollTo({ top: 0 });
+      revealOnPhone(b);
       peek.classList.remove('talk'); void peek.offsetWidth; peek.classList.add('talk');
       return b;
     },
     /** Keep a card (e.g. the blunder-check question) above the feed until removed. */
-    pin(node) { pinned.replaceChildren(node); feed.scrollTo({ top: 0 }); peek.classList.remove('talk'); void peek.offsetWidth; peek.classList.add('talk'); return node; },
+    pin(node) { pinned.replaceChildren(node); feed.scrollTo({ top: 0 }); revealOnPhone(node); peek.classList.remove('talk'); void peek.offsetWidth; peek.classList.add('talk'); return node; },
     unpin() { pinned.replaceChildren(); },
     clear() { feed.replaceChildren(empty); pinned.replaceChildren(); },
   };

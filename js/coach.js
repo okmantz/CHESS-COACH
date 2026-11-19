@@ -307,7 +307,10 @@ export function explainMove(m, ctx = {}) {
 
   if (mateForMe && !(pa.mate != null && pa.mate > 0)) {
     primary = 'missed-mate'; themes.push('mate');
-    what = `You had a forced checkmate in ${pb.mate} starting with ${bestSan}${bestLineSan ? ` (${bestLineSan})` : ''}. Instead, ${m.san} let it slip.`;
+    const stillWinning = pa.mate == null && pa.cp >= 300;
+    what = stillWinning
+      ? `You had a forced checkmate in ${pb.mate} starting with ${bestSan}${bestLineSan ? ` (${bestLineSan})` : ''}. ${m.san} keeps a big advantage (${fmtPov(pa)}), but the mate was the cleanest way to finish.`
+      : `You had a forced checkmate in ${pb.mate} starting with ${bestSan}${bestLineSan ? ` (${bestLineSan})` : ''}. Instead, ${m.san} let it slip.`;
   } else if (mateForMe && pa.mate != null && pa.mate > 0 && m.missedMate !== true) {
     primary = 'missed-mate'; themes.push('mate');
     what = `You are still winning, but ${m.san} takes a much longer route. ${bestSan} mates in ${pb.mate}${bestLineSan ? ` (${bestLineSan})` : ''}; with ${m.san} it takes ${pa.mate}.`;
