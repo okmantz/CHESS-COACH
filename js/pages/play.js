@@ -75,7 +75,7 @@ function setupView(resumable, onStart, onResume) {
   };
   draw();
 
-  root.append(
+  root.append(h('div',
     h('div.page-head', h('h1', 'Play')),
     h('a.card.click.mb.coach-banner', { href: '#/coach-play' }, h('div.row.nowrapr', h('div.course-icon', '🤝'), h('div.grow', h('b', 'Play a game with Coach'), h('div.small.muted', 'A guided game: the coach asks you the right questions before you move, stops blunders, and reviews your habits afterwards.')), h('span.btn.primary', 'Start', icon('right', 16)))),
     resumable ? h('div.card.mb', { style: { borderColor: 'var(--accent)' } }, h('div.row', h('div.grow', h('b', 'Game in progress'), h('div.small.muted', `vs ${levelByN(resumable.level).name} · ${resumable.sans.length} moves`)),
@@ -91,7 +91,7 @@ function setupView(resumable, onStart, onResume) {
         h('div.card', h('div.card-title', icon('clock', 18), 'Time control'), tcBox),
         h('div.card', ratedRow),
         h('button.btn.primary.big.block', { onclick: () => { localStorage.setItem('chesscoach.lastsetup', JSON.stringify(cfg)); onStart({ ...cfg, color: cfg.color === 'r' ? (Math.random() < 0.5 ? 'w' : 'b') : cfg.color }); } }, icon('play', 18), 'Start game'))),
-  );
+  ));
   return root;
 }
 

@@ -262,3 +262,11 @@ select.select { appearance: none; background-image: url("data:image/svg+xml;utf8
 .stat { text-align: center; } .stat b { display: block; font-size: 1.5rem; letter-spacing: -.02em; } .stat span { color: var(--muted); font-size: .78rem; }
 .card-title { display: flex; align-items: center; gap: 8px; font-weight: 800; margin-bottom: 10px; }
 .page-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+
+/* link cards: anchors are inline by default, which fragments borders and clips content */
+a.card, a.card.click { display: block; text-decoration: none; color: inherit; box-sizing: border-box; min-width: 0; overflow: hidden; }
+a.card .row.nowrapr { min-width: 0; }
+a.card .grow { min-width: 0; overflow-wrap: anywhere; }
+a.card .btn, a.card .tag { flex: none; white-space: nowrap; }
+.grid > a.card { height: 100%; }
+@media (max-width: 520px) { a.card .row.nowrapr { gap: 10px; } .hero-card .btn, .coach-banner .btn { padding-inline: 12px; } }
