@@ -15,6 +15,7 @@ import { buildPgn, START_FEN, evalToCp } from '../analysis.js';
 import { makeHint } from '../coach.js';
 import { play as sfx, playForMove } from '../sound.js';
 import { trackPlan } from '../plan.js';
+import { crownsFor, recordCrowns, crownBanner } from '../crowns.js';
 
 const LIVE_KEY = 'chesscoach.live';
 const TCS = [
@@ -103,8 +104,9 @@ function gameView(view, ctx, cfg, resume, back, rematch) {
   const s0 = store.get();
   const st = resume ? { ...resume } : {
     level: cfg.level, color: cfg.color, tc: cfg.tc, rated: cfg.rated, sans: [], ucis: [], start: Date.now(),
-    clocks: null, helped: false, undone: 0, hints: 0,
+    clocks: null, helped: false, undone: 0, hints: 0, hintFens: [],
   };
+  st.hintFens = st.hintFens || [];   // positions where a hint was requested (crowns count one hint per position)
   const L = levelByN(st.level);
   const tc = TCS.find((t) => t.id === st.tc) || TCS[0];
   const me = st.color, bot = me === 'w' ? 'b' : 'w';
@@ -275,6 +277,7 @@ function gameView(view, ctx, cfg, resume, back, rematch) {
   async function hint() {
     if (over || chess.turn() !== me || thinking) return;
     st.helped = true; st.hints++;
+    { const key = chess.fen().split(' ').slice(0, 4).join(' '); if (!st.hintFens.includes(key)) st.hintFens.push(key); }
     const level = (hint.level = ((hint.fen === chess.fen() ? hint.level : 0) || 0) + 1);
     hint.fen = chess.fen();
     const engine = await ctx.engine();
@@ -343,21 +346,25 @@ function gameView(view, ctx, cfg, resume, back, rematch) {
     const sans = chess.history();
     const names = me === 'w' ? [store.get().profile.name, `${L.who} (${L.name})`] : [`${L.who} (${L.name})`, store.get().profile.name];
     const pgn = buildPgn({ sans, headers: { White: names[0], Black: names[1], Result: result, WhiteElo: me === 'w' ? Math.round(store.get().rating.value) : L.elo, BlackElo: me === 'b' ? Math.round(store.get().rating.value) : L.elo, TimeControl: tc.id === 'unlimited' ? '-' : `${tc.ms / 1000}+${tc.inc / 1000}`, Termination: reason } });
-    const id = store.saveGame({ source: 'play', color: me, result, outcome, reason, sans, pgn, level: st.level, oppElo: L.elo, oppName: `${L.who} · ${L.name}`, tc: tc.id, rated, ratingDelta: Math.round(delta), ratingAfter: Math.round(newR), helped: st.helped, startFen: START_FEN, moves: sans.length });
+    const hintsUsed = st.hintFens.length, takebacks = st.undone || 0;
+    const crowns = crownsFor({ outcome, hints: hintsUsed, takebacks });
+    recordCrowns(L.n, crowns);
+    const id = store.saveGame({ source: 'play', color: me, result, outcome, reason, sans, pgn, level: st.level, oppElo: L.elo, oppName: `${L.who} · ${L.name}`, tc: tc.id, rated, ratingDelta: Math.round(delta), ratingAfter: Math.round(newR), helped: st.helped, hints: hintsUsed, takebacks, crowns, startFen: START_FEN, moves: sans.length });
     store.logActivity('games'); localStorage.removeItem(LIVE_KEY);
     trackPlan({ kind: 'play' });
     sfx(outcome === 'win' ? 'win' : 'end');
     ctx.refreshChrome();
     { const fin = react(L.n, { over: outcome === 'win' ? 'lose' : outcome === 'loss' ? 'win' : 'draw' }); if (fin) stage.say(fin.text, { mood: fin.mood }); }
-    showResult(outcome, reason, rated, delta, newR, id);
+    showResult(outcome, reason, rated, delta, newR, id, crowns);
   }
 
-  function showResult(outcome, reason, rated, delta, newR, id) {
+  function showResult(outcome, reason, rated, delta, newR, id, crowns = 0) {
     const rs = store.get().rating;
     const title = outcome === 'win' ? 'You won!' : outcome === 'draw' ? 'Draw' : 'You lost';
     const m = modal(h('div.col', { style: { textAlign: 'center' } },
       h('div', { style: { fontSize: '46px' } }, outcome === 'win' ? '🏆' : outcome === 'draw' ? '🤝' : '♟'),
       h('h2', title), h('div.muted', `by ${reason}`),
+      outcome === 'win' ? crownBanner(crowns) : null,
       rated ? h('div.card.flat', h('div.big-num', { style: { color: delta >= 0 ? 'var(--good)' : 'var(--bad)' } }, `${delta >= 0 ? '+' : ''}${Math.round(delta)}`),
         h('div', `New rating: `, h('b', String(Math.round(newR))), rs.games <= PROVISIONAL_GAMES ? h('span.muted', ` · provisional (${rs.games}/${PROVISIONAL_GAMES})`) : null)) :
         h('div.small.muted', st.helped || st.undone ? 'Unrated — hints or takebacks were used.' : 'Unrated game.'),

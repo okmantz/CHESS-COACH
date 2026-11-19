@@ -8,6 +8,7 @@ import { legalTargetsFor, checkSquare, splitPgn, engineSafe, uciOf } from '../ch
 import { playerBar, moveList, evalChart, coachCard, classBadge, emptyState } from '../components.js';
 import { playForMove } from '../sound.js';
 import { trackPlan } from '../plan.js';
+import { isMobile } from '../gameui.js';
 
 const NOTABLE = ['brilliant', 'great', 'inaccuracy', 'mistake', 'blunder', 'miss'];
 
@@ -124,7 +125,8 @@ function reviewScreen(view, ctx, record, toInput, setTeardown) {
 
   const names = (() => {
     if (record.source === 'play') return record.color === 'w' ? [store.get().profile.name, record.oppName] : [record.oppName, store.get().profile.name];
-    return [game.headers.White || 'White', game.headers.Black || 'Black'];
+    const nm = (v, d) => (!v || v === '?' ? d : v);
+    return [nm(game.headers.White, 'White'), nm(game.headers.Black, 'Black')];
   })();
   const orient = record.color === 'b' ? 'b' : 'w';
 
@@ -169,6 +171,8 @@ function reviewScreen(view, ctx, record, toInput, setTeardown) {
   function build() {
     if (!alive) return;
     const n = game.sans.length;
+    document.body.classList.add('in-review');   // phones: hides the top bar so the sticky board has room
+    window.scrollTo(0, 0);
     const board = new Board(h('div'), {
       orientation: orient, coords: settings.coords, legalDots: settings.legalDots, animate: settings.animations, autoQueen: settings.autoQueen,
       interactive: true,
@@ -190,7 +194,34 @@ function reviewScreen(view, ctx, record, toInput, setTeardown) {
     const accBadge = (c) => review.summary[c].acc;
     const showBest = h('button.btn.small', { onclick: () => toggleBest() }, icon('eye', 15), 'Best move');
 
+    let booting = true;
     function mv(i) { return review.moves[i]; }
+
+    /* ---- key moments: jump straight to the player's mistakes and blunders ---- */
+    const keyBar = h('div.key-bar');
+    const keyPlies = () => review.moves.map((m, i) => ({ m, i })).filter(({ m }) => ['mistake', 'blunder'].includes(m.cls) && (!record.color || record.color === 'none' || m.color === record.color)).map(({ i }) => i + 1);
+    function jumpKey(dir) {
+      const ks = keyPlies();
+      const t = dir > 0 ? ks.find((k) => k > ply) : ks.slice().reverse().find((k) => k < ply);
+      if (t != null) goTo(t);
+    }
+    function renderKeyBar() {
+      const ks = keyPlies();
+      if (!ks.length) { keyBar.replaceChildren(h('div.small.muted', 'No mistakes or blunders to review in this game.')); return; }
+      const done = ks.filter((k) => k <= ply).length;
+      keyBar.replaceChildren(
+        h('button.btn.small', { disabled: !ks.some((k) => k < ply), onclick: () => jumpKey(-1), 'aria-label': 'Previous key moment' }, icon('left', 14), 'Prev'),
+        h('div.grow.center.small', h('b', 'Key moments'), h('span.muted', ` ${done}/${ks.length}`)),
+        h('button.btn.small', { disabled: !ks.some((k) => k > ply), onclick: () => jumpKey(1), 'aria-label': 'Next key moment' }, 'Next', icon('right', 14)));
+    }
+    /** Phones: the board is pinned at the top, so make sure the coach's note is not hidden underneath it after a jump. */
+    function revealCoach() {
+      if (!isMobile()) return;
+      const bc = root.querySelector('.board-col'); const tw = root.querySelector('.tabs-wrap');
+      if (!bc || !tw) return;
+      const edge = bc.getBoundingClientRect().bottom; const r = tw.getBoundingClientRect();
+      if (r.top < edge) window.scrollTo({ top: Math.max(0, window.scrollY + r.top - edge - 6) });
+    }
     function goTo(p, animate = true) {
       variation = null; liveToken++;
       p = Math.max(0, Math.min(n, p));
@@ -204,7 +235,8 @@ function reviewScreen(view, ctx, record, toInput, setTeardown) {
       const e = expandEval(review.evals[p]);
       evalBar.update(winPct(e), fmtEval(e, { noPlus: true }));
       botBar.setCaptured(fens[p]); topBar.setCaptured(fens[p]);
-      renderInfo(); renderCoach(); renderLine();
+      renderInfo(); renderCoach(); renderLine(); renderKeyBar();
+      if (!booting) revealCoach();
       if (mlist) { mlist.querySelectorAll('.mv').forEach((el) => el.classList.toggle('active', +el.dataset.idx === p - 1)); mlist.scrollToCurrent && mlist.scrollToCurrent(); }
       if (chart) chart.setCursor(p - 1);
       btnPrev.disabled = btnFirst.disabled = p === 0; btnNext.disabled = btnLast.disabled = p === n;
@@ -225,7 +257,7 @@ function reviewScreen(view, ctx, record, toInput, setTeardown) {
       }
       if (ply === 0) {
         coachBox.append(h('div.card.coach-box', h('div.coach-head', h('div.coach-avatar', '🎓'), h('div.grow', h('b', 'Ready to review'), h('div.small.muted', review.opening ? review.opening.name : 'Step through the game with ← →'))),
-          h('p.small.muted', 'Tap a move to jump to it, or press the arrow keys. Moves marked ?! ? ?? come with a coaching note on what happened and what to consider. You can also play any move on the board to explore a variation.')));
+          h('p.small.muted', 'Step through the game with the arrows under the board (or ← →), or jump straight to your mistakes with Prev / Next above. Moves marked ?! ? ?? come with a coaching note on what happened and what to consider. You can also play any move on the board to explore a variation.')));
         return;
       }
       const m = mv(ply - 1);
@@ -314,7 +346,7 @@ function reviewScreen(view, ctx, record, toInput, setTeardown) {
       return h('div', mlist);
     };
     const tab = tabs([
-      { id: 'coach', label: 'Coach', render: () => h('div.col', info, coachBox, lineBox) },
+      { id: 'coach', label: 'Coach', render: () => h('div.col', keyBar, info, coachBox, lineBox) },
       { id: 'moves', label: 'Moves', render: movesTab },
       { id: 'report', label: 'Report', render: reportTab },
     ], { active: 'coach' });
@@ -323,17 +355,17 @@ function reviewScreen(view, ctx, record, toInput, setTeardown) {
     chartBox.append(chart);
 
     const sideCol = h('div.side-col',
-      h('div.card', h('div.acc-row',
+      h('div.card.acc-card', h('div.acc-row',
         h('div.center', h('div.acc-val', `${accBadge('w').toFixed(1)}`), h('div.xs.muted', names[0])),
         h('div.xs.faint', 'accuracy'),
         h('div.center', h('div.acc-val', `${accBadge('b').toFixed(1)}`), h('div.xs.muted', names[1])))),
-      chartBox, tab,
+      h('div.chart-box', chartBox), tab,
       h('div.row', h('button.btn.small', { onclick: () => { navigator.clipboard && navigator.clipboard.writeText(record.pgn || ''); toast('PGN copied', 'good'); } }, icon('copy', 15), 'Copy PGN'),
         record.id ? null : null,
         h('button.btn.small', { onclick: () => toInput() }, icon('plus', 15), 'New analysis'),
         record.color === 'none' || !record.color ? h('button.btn.small', { onclick: () => pickSide() }, icon('user', 15), 'I played…') : h('button.btn.small', { onclick: () => ctx.navigate('#/coach') }, icon('target', 15), 'See coaching plan')));
 
-    root.replaceChildren(h('div.game-layout',
+    root.replaceChildren(h('div.game-layout.review-layout',
       h('div.board-col', topBar.el, h('div.board-row', evalBar.el, h('div.board-box', board.el)), botBar.el, nav),
       sideCol));
 
@@ -350,11 +382,12 @@ function reviewScreen(view, ctx, record, toInput, setTeardown) {
       if (e.key === 'ArrowDown') { e.preventDefault(); goTo(n); }
     };
     document.addEventListener('keydown', onKey);
-    setTeardown(() => { alive = false; document.removeEventListener('keydown', onKey); board.destroy(); });
+    setTeardown(() => { alive = false; document.body.classList.remove('in-review'); document.removeEventListener('keydown', onKey); board.destroy(); });
     // first interesting moment: jump to first mistake/blunder of the player, else start
     const startAt = (() => { const c = record.color; const i = review.moves.findIndex((m) => (!c || c === 'none' || m.color === c) && ['mistake', 'blunder'].includes(m.cls)); return i >= 0 ? i + 1 : 0; })();
     goTo(0, false);
     if (startAt > 0 && ctx.query.game) { tab.show('coach'); goTo(startAt, false); }
+    booting = false;
   }
 }
 

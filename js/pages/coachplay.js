@@ -25,6 +25,7 @@ import { tier, currentRung, recordResult, progressFor, isPassed } from '../ladde
 import { avatarEl } from '../avatars.js';
 import { play as sfx, playForMove } from '../sound.js';
 import { trackPlan } from '../plan.js';
+import { crownsFor, recordCrowns, crownBanner, withCrowns, COUNT_BLUNDER_CHECK_RETRIES } from '../crowns.js';
 
 const MODES = [
   { id: 'guided', name: 'Guided', blurb: 'Questions before each move, explanations of their moves, blunder check, hints on request. Best for learning.' },
@@ -115,6 +116,9 @@ function gameView(view, ctx, cfg, back) {
   const recs = [];                 // one record per move I played
   const habits = { intercepted: 0, overridden: 0, hints: 0, retried: 0, asked: 0 };
   let prefetch = null;
+  const hintedFens = new Set();    // positions where a hint was requested (crowns count one hint per position)
+  const hintCache = new Map();    // fen -> the engine's best move, searched deeper than the live judge so hints are reliable
+  let hintBusy = false;
   const sans = [], ucis = [];
 
   const board = new Board(h('div'), { orientation: me, coords: settings.coords, legalDots: settings.legalDots, autoQueen: settings.autoQueen, animate: settings.animations, interactive: true,
@@ -235,13 +239,25 @@ function gameView(view, ctx, cfg, back) {
   }
 
   /* ---------- hint ladder ---------- */
+  /** The engine's best move for a hint. Hints must be right, so they get a deeper search than the live blunder check (and are cached per position). */
+  async function hintBest(fen) {
+    if (hintCache.has(fen)) return hintCache.get(fen);
+    let best = null;
+    try { const r = await searchPosition(await engine(), fen, { depth: 16, movetime: 2200, multipv: 2 }); best = r.best; } catch (e) { best = null; }
+    if (!best) { const pf = prefetch ? await prefetch : null; best = pf && pf.lines && pf.lines[0] ? pf.lines[0].pv[0] : null; }
+    if (best) hintCache.set(fen, best);
+    return best;
+  }
   async function giveHint() {
-    if (over || busy || chess.turn() !== me) return;
+    if (over || busy || hintBusy || chess.turn() !== me) return;
     const fen = chess.fen();
-    const pf = prefetch ? await prefetch : null;
-    const lines = pf ? pf.lines : (await searchPosition(await engine(), fen, { depth: 12, movetime: 900 })).lines;
-    const best = lines[0] && lines[0].pv[0];
-    if (!best) return;
+    hintBusy = true;
+    if (!hintCache.has(fen)) status.textContent = 'Coach is checking the position…';
+    let best = null;
+    try { best = await hintBest(fen); } finally { hintBusy = false; if (!over && status.textContent.startsWith('Coach is checking')) status.textContent = ''; }
+    // the player may have moved (or the game ended) while the engine was thinking: never show a stale hint
+    if (!best || !alive || over || chess.fen() !== fen) return;
+    hintedFens.add(fen.split(' ').slice(0, 4).join(' '));
     hintLevel = Math.min(4, hintLevel + 1); habits.hints++;
     const f = moveFeatures(fen, best);
     if (hintLevel === 1) sayText(`Hint 1 of 4 — the idea. ${makeHint(fen, best, 1).text}`);
@@ -408,7 +424,10 @@ function gameView(view, ctx, cfg, back) {
     { const fin = react(L.n, { over: outcome === 'win' ? 'lose' : outcome === 'loss' ? 'win' : 'draw' }); if (fin) stage.say(fin.text, { mood: fin.mood }); }
     const result = outcome === 'draw' ? '1/2-1/2' : (outcome === 'win') === (me === 'w') ? '1-0' : '0-1';
     const pgn = buildPgn({ sans, headers: { White: me === 'w' ? 'You' : `${L.who} (${L.name})`, Black: me === 'b' ? 'You' : `${L.who} (${L.name})`, Result: result } });
-    const id = store.saveGame({ source: 'coach-play', color: me, result, outcome, reason, sans: sans.slice(), pgn, level: cfg.level, oppElo: L.elo, oppName: `${L.who} · ${L.name}`, tc: 'unlimited', rated: false, startFen: START_FEN, moves: sans.length });
+    const hintsUsed = hintedFens.size, takebacks = COUNT_BLUNDER_CHECK_RETRIES ? habits.retried : 0;
+    const crowns = crownsFor({ outcome, hints: hintsUsed, takebacks });
+    recordCrowns(L.n, crowns);
+    const id = store.saveGame({ source: 'coach-play', color: me, result, outcome, reason, sans: sans.slice(), pgn, level: cfg.level, oppElo: L.elo, oppName: `${L.who} · ${L.name}`, tc: 'unlimited', rated: false, hints: hintsUsed, takebacks, crowns, startFen: START_FEN, moves: sans.length });
     store.logActivity('games'); trackPlan({ kind: 'play' });
     sfx(outcome === 'win' ? 'win' : 'end');
     const rep = buildReport();
@@ -421,7 +440,7 @@ function gameView(view, ctx, cfg, back) {
     ctx.refreshChrome && ctx.refreshChrome();
     status.textContent = '';
     document.body.classList.remove('in-game');
-    view.replaceChildren(reportView(rep, outcome, reason, id, road, counts));
+    view.replaceChildren(reportView(rep, outcome, reason, id, road, counts, crowns));
     window.scrollTo(0, 0);
     if (road && road.newlyPassed) celebrate(road);
   }
@@ -468,7 +487,7 @@ function gameView(view, ctx, cfg, back) {
     return { by, accuracy, moments, notes, best, focus, habitFlags, total: mine.length, elo: accuracyToRating(accuracy, mine.length) };
   }
 
-  function roadCard(road, outcome, counts, rep) {
+  function roadCard(road, outcome, counts, rep, crowns = 0) {
     const pf = progressFor(cfg.level);
     const left = pf.steps.filter((x) => !x.done).slice(0, 3);
     const head = !counts ? ['Too short to count', 'Play at least 6 moves for a game to count toward the road.']
@@ -477,12 +496,13 @@ function gameView(view, ctx, cfg, back) {
           : outcome === 'win' ? ['A win — but not yet a clean one', `Your accuracy was ${rep.accuracy}%; a clean win needs ${T.target}%+. ${road ? `You have ${road.wins} of ${T.needWins} wins.` : ''}`]
             : outcome === 'draw' ? ['A draw — good fight', `Win the game with ${T.target}%+ accuracy to pass ${T.who}.`] : ['Not this time', `Study the turning points below, then try ${T.who} again. You need a win with ${T.target}%+ accuracy.`];
     return h('div.card.mb.road-card', { style: { '--tier': T.color } },
-      h('div.row.nowrapr', avatarEl({ kind: 'portrait', value: T.avatar }, 48, { square: true, ring: T.color }), h('div.grow', h('div.eyebrow', `Road · ${T.elo} ${T.name}`), h('b', head[0]), h('div.small.muted', head[1]))),
+      h('div.row.nowrapr', withCrowns(avatarEl({ kind: 'portrait', value: T.avatar }, 48, { square: true, ring: T.color }), cfg.level, { size: 10 }), h('div.grow', h('div.eyebrow', `Road · ${T.elo} ${T.name}`), h('b', head[0]), h('div.small.muted', head[1]))),
+      outcome === 'win' ? h('div.mt', crownBanner(crowns)) : null,
       counts ? h('div.mt', h('div.row.between.xs.muted', h('span', 'Accuracy'), h('span', `${rep.accuracy}% / ${T.target}% needed`)), h('div.progress', { style: { height: '8px' } }, h('div.progress-fill', { style: { width: Math.min(100, (rep.accuracy / T.target) * 100) + '%', background: rep.accuracy >= T.target ? 'var(--good)' : 'var(--warn)' } }))) : null,
       !isPassed(cfg.level) && left.length ? h('div.mt', h('div.small', h('b', 'Do next: ')), h('div.col', { style: { gap: '6px', marginTop: '6px' } }, left.map((st) => h('a.road-step', { href: st.href }, h('span.tick', icon('check', 12)), h('span.grow', st.label), icon('right', 14))))) : null);
   }
 
-  function reportView(rep, outcome, reason, id, road, counts) {
+  function reportView(rep, outcome, reason, id, road, counts, crowns = 0) {
     const root = h('div.page');
     const title = outcome === 'win' ? 'You won!' : outcome === 'draw' ? 'A draw' : 'Game over';
     const cls = ['brilliant', 'great', 'best', 'excellent', 'good', 'inaccuracy', 'mistake', 'blunder'];
@@ -490,7 +510,7 @@ function gameView(view, ctx, cfg, back) {
     const nxt = cfg.level < 10 ? tier(cfg.level + 1) : null;
     root.append(...[
       h('div.page-head', h('h1', 'Coach report'), h('span.tag.accent', `${title} · ${reason}`)),
-      roadCard(road, outcome, counts, rep),
+      roadCard(road, outcome, counts, rep, crowns),
       h('div.card.mb', h('div.row.around', stat(rep.accuracy + '%', 'Accuracy'), stat(String(rep.total), 'Your moves'), stat(String(rep.by.blunder || 0), 'Blunders'), stat(String(rep.by.mistake || 0), 'Mistakes')),
         h('div.row.mt.tight', ...cls.filter((c) => rep.by[c]).map((c) => h('span.tag', { class: c }, `${rep.by[c]} ${NICE[c].toLowerCase()}`)))),
       rep.notes.length ? h('div.card.mb', h('div.card-title', icon('trend', 18), 'Your habits'), ...rep.notes.map((n) => h('div.say', { class: n.tone }, h('p', n.text)))) : null,
