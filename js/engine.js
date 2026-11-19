@@ -112,10 +112,14 @@ export class Engine {
       if (nodes) cmd += ` nodes ${nodes}`;
       if (searchmoves && searchmoves.length) cmd += ` searchmoves ${searchmoves.join(' ')}`;
       if (cmd === 'go') cmd = 'go depth 12';
+      let guard = null;
       const res = await new Promise((resolve, reject) => {
         this._search = { resolve, reject, lines: {}, onInfo };
+        // a stuck search must never block the queue: force a bestmove shortly after the time budget
+        if (movetime) guard = setTimeout(() => this.t.post('stop'), movetime + 4000);
         this.t.post(cmd);
       });
+      if (guard) clearTimeout(guard);
       for (const l of res.lines) l.white = l.mate != null ? { mate: turn === 'w' ? l.mate : -l.mate } : { cp: turn === 'w' ? l.cp : -l.cp };
       res.turn = turn;
       return res;

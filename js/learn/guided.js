@@ -7,6 +7,7 @@ import { Board } from '../board.js';
 import { botMove } from '../bot.js';
 import { legalTargetsFor, checkSquare, uciOf, engineSafe, gameOverReason } from '../chessutil.js';
 import { povWin, CLASSES, classifyLoss, fmtEval, moveAccuracy } from '../evalmath.js';
+import { judgeMove } from '../judge.js';
 import { makeHint, narrateMove, quickComment } from '../coach.js';
 import { play as sfx, playForMove } from '../sound.js';
 import { trackPlan } from '../plan.js';
@@ -122,21 +123,24 @@ export function guidedLesson(root, ctx, track, lesson, back) {
     learnerMoves++;
     const my = token;
     // evaluate the played move against the best move
-    let cls = 'good', loss = 0, afterEval = null;
+    let cls = 'good', loss = 0, afterEval = null, bestUci = before ? before.uci : null;
     try {
       afterEval = gameOverReason(chess) ? null : await bestOf(chess.fen(), 12);
       if (my !== token || !alive) return true;
-      const bw = before ? povOf(before.white, side) : 50;
-      const aw = chess.isCheckmate() ? 100 : afterEval ? povOf(afterEval.white, side) : (gameOverReason(chess) ? 50 : 50);
-      loss = Math.max(0, bw - aw);
-      cls = classifyLoss(loss, before && uciOf(mv) === before.uci);
+      if (chess.isCheckmate()) { cls = 'best'; loss = 0; }
+      else if (engineSafe(fenBefore)) {
+        // same-search comparison (see judge.js): the played move and the best move are valued in one search
+        const j = await judgeMove(await ctx.engine(), fenBefore, uciOf(mv), { depth: 12, movetime: 900 });
+        if (my !== token || !alive) return true;
+        cls = j.cls; loss = j.loss; bestUci = j.best;
+      }
     } catch (er) { /* ignore */ }
     accSum += moveAccuracy(loss);
-    const best = before && uciOf(mv) !== before.uci ? new Chess(fenBefore).move({ from: before.uci.slice(0, 2), to: before.uci.slice(2, 4), promotion: before.uci[4] }).san : null;
-    const talk = h('div', h('div.row.tight', classBadge(cls), h('b', mv.san)), h('div.small', cls === 'best' || cls === 'excellent' ? (quickComment(fenBefore, uciOf(mv)) || 'Exactly the right idea.') : cls === 'good' ? 'Fine, but there was something sharper.' : 'That lets the position slip.'), best && loss > 2 ? h('div.small.muted', `Better: ${best}${before.pv ? '' : ''}.`) : null);
+    const best = bestUci && bestUci !== uciOf(mv) ? new Chess(fenBefore).move({ from: bestUci.slice(0, 2), to: bestUci.slice(2, 4), promotion: bestUci[4] }).san : null;
+    const talk = h('div', h('div.row.tight', classBadge(cls), h('b', mv.san)), h('div.small', cls === 'best' || cls === 'excellent' ? (quickComment(fenBefore, uciOf(mv)) || 'Exactly the right idea.') : cls === 'good' ? 'Fine, but there was something sharper.' : 'That lets the position slip.'), best && loss > 2 ? h('div.small.muted', `The engine preferred ${best}.`) : null);
     bubble(talk, loss <= 5 ? 'good' : 'bad');
     sfx(loss <= 5 ? 'good' : 'bad');
-    if (loss > 12 && best) board.setArrows([{ from: before.uci.slice(0, 2), to: before.uci.slice(2, 4), color: '#5fc88f', opacity: 0.8 }]);
+    if (loss > 12 && best && bestUci) board.setArrows([{ from: bestUci.slice(0, 2), to: bestUci.slice(2, 4), color: '#5fc88f', opacity: 0.8 }]);
     if (checkOver(afterEval)) return true;
     nextTurn();
     return true;

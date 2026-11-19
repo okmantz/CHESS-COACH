@@ -2,7 +2,7 @@ import { Chess } from '../../vendor/chess.js';
 import * as store from '../store.js';
 import { h, icon, toast, modal, tabs, avatar, progress, pickFile, readFile } from '../ui.js';
 import { Board, EvalBar } from '../board.js';
-import { parseGame, reviewGame, buildReview, DEPTHS, CLASSES, fmtEval, winPct, expandEval, buildPgn, START_FEN, accuracyToRating } from '../analysis.js';
+import { parseGame, reviewGame, buildReview, attachCoach, compactReview, REVIEW_VERSION, DEPTHS, CLASSES, fmtEval, winPct, expandEval, buildPgn, START_FEN, accuracyToRating } from '../analysis.js';
 import { pvToSan, TAGS } from '../coach.js';
 import { legalTargetsFor, checkSquare, splitPgn, engineSafe, uciOf } from '../chessutil.js';
 import { playerBar, moveList, evalChart, coachCard, classBadge, emptyState } from '../components.js';
@@ -58,7 +58,7 @@ export default async function analyzePage(view, ctx) {
           h('div.row', h('button.btn', { onclick: async () => { const f = await pickFile('.pgn,.txt'); if (f) ta.value = await readFile(f); } }, icon('upload', 16), 'Open .pgn file'),
             h('button.btn', { onclick: async () => { try { ta.value = await navigator.clipboard.readText(); } catch (e) { toast('Paste with Ctrl/Cmd+V instead'); } } }, icon('copy', 16), 'Paste')),
           h('div', h('label.field', 'Which side are you?'), sideSeg),
-          h('div', h('label.field', 'Analysis depth'), depthSeg, h('div.xs.muted.mt', 'Quick ≈ 10 s · Standard ≈ 30 s · Deep ≈ 90 s for a 40-move game.')),
+          h('div', h('label.field', 'Analysis depth'), depthSeg, h('div.xs.muted.mt', 'Quick ≈ 20 s · Standard ≈ 1 min · Deep ≈ 3 min for a 40-move game. Serious mistakes are always double-checked at a higher depth.')),
           h('button.btn.primary.big', { onclick: () => ta.value.trim() ? go(ta.value) : toast('Paste a game first') }, icon('search', 18), 'Analyze game')),
         h('div.card', h('div.card-title', icon('list', 18), 'From your library'),
           library.length ? h('div.col', library.map((g) => gameRow(g, () => ctx.navigate(`#/analyze?game=${g.id}`)))) : emptyState('list', 'No games yet', 'Play a game against the computer or import one to see it here.'),
@@ -114,7 +114,9 @@ function reviewScreen(view, ctx, record, toInput, setTeardown) {
   const fens = [chess.fen()]; const ucis = [];
   for (const san of game.sans) { const m = chess.move(san); ucis.push(uciOf(m)); fens.push(chess.fen()); }
   game.fens = fens; game.ucis = ucis;
-  let review = record.review || null;
+  // reviews made by an older judging engine are re-analysed automatically; current ones just need their commentary rebuilt
+  const stale = !!record.review && record.review.version !== REVIEW_VERSION;
+  let review = record.review && !stale ? attachCoach(record.review) : null;
   let ply = review ? 0 : 0;
   let cancelled = false, alive = true;
   let variation = null; // {chess, fen, from}
@@ -133,7 +135,7 @@ function reviewScreen(view, ctx, record, toInput, setTeardown) {
     // --- progress screen
     const bar = progress(0, { height: 10 });
     const lbl = h('div.muted', 'Starting engine…');
-    root.append(h('div.card.progress-wrap', h('div.big-num', '0%'), h('h3', 'Analyzing your game'), lbl, h('div', { style: { height: '12px' } }), bar,
+    root.append(h('div.card.progress-wrap', h('div.big-num', '0%'), h('h3', stale ? 'Re-analysing with the improved engine' : 'Analyzing your game'), stale ? h('div.small.muted', 'This game was reviewed with an older version of the analysis. It is being re-checked so every verdict is accurate.') : null, lbl, h('div', { style: { height: '12px' } }), bar,
       h('div.mt', h('button.btn', { onclick: () => { cancelled = true; toInput(); } }, 'Cancel'))));
     const big = root.querySelector('.big-num');
     (async () => {
@@ -147,7 +149,7 @@ function reviewScreen(view, ctx, record, toInput, setTeardown) {
         });
         if (cancelled || !alive) return;
         // persist
-        const id = store.saveGame({ ...record, review, depth: undefined, moves: game.sans.length });
+        const id = store.saveGame({ ...record, review: compactReview(review), depth: undefined, moves: game.sans.length });
         record.id = id; record.review = review;
         if (record.color && record.color !== 'none') store.setGameMistakes(id, extractMistakes(review, record.color));
         store.logActivity('analyses'); trackPlan({ kind: 'analyze' });
@@ -368,5 +370,5 @@ function reportView(review, record, names, n) {
     h('div.card.flat', h('div.row.between', h('b', names[1]), h('span.muted', 'Black')), h('div.small.muted', phase('b') || '—'), est('b') ? h('div.small', 'Performance ≈ ', h('b', String(est('b')))) : null),
     h('div.card.flat', table),
     review.opening ? h('div.small.muted', `Opening: ${review.opening.name}`) : null,
-    h('div.xs.faint', `Stockfish depth ${review.depth}. Accuracy and move quality come from changes in win probability, not raw pawn counts.`));
+    h('div.xs.faint', `Stockfish depth ${review.depth}. Each move is compared with the engine's best move in the same search; losses are measured in win probability and, in decided positions, in pawns.`));
 }

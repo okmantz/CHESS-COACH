@@ -3,7 +3,8 @@ import { Chess } from '../vendor/chess.js';
 import { ECO } from './data/eco.js';
 import { phaseOf, moveFeatures } from './themes.js';
 import { explainMove } from './coach.js';
-import { evalToCp, winPct, povWin, moveAccuracy, fmtEval, CLASSES, classifyLoss } from './evalmath.js';
+import { evalToCp, winPct, povWin, moveAccuracy, fmtEval, CLASSES, classifyLoss, effectiveLoss, moverCp } from './evalmath.js';
+import { refineClass } from './judge.js';
 
 export const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
@@ -94,7 +95,12 @@ export function buildPgn({ sans, startFen = START_FEN, headers = {} }) {
 
 /* ---------------- the review pipeline ---------------- */
 
-export const DEPTHS = { quick: 10, standard: 13, deep: 16 };
+/** Search depth per review level; each search also has a time cap so a long game never stalls. */
+export const DEPTHS = { quick: 11, standard: 14, deep: 18 };
+const CAPS = { 11: 600, 14: 1500, 18: 4200 };
+const capFor = (d) => CAPS[d] || Math.round(d * 120);
+/** Bumped whenever the judging logic changes: older saved reviews are re-analysed automatically. */
+export const REVIEW_VERSION = 3;
 
 function terminalEval(ch) {
   if (ch.isCheckmate()) return { mate: 0, white: ch.turn() === 'w' ? -1 : 1 };
@@ -102,9 +108,15 @@ function terminalEval(ch) {
   return null;
 }
 
-/** Analyse every position of the game (N+1 searches, MultiPV 2). */
-export async function analysePositions(engine, fens, { depth = 13, onProgress, shouldStop } = {}) {
+const slim = (lines) => lines.slice(0, 3).map((l) => ({ e: l.white, pv: l.pv.slice(0, 8) }));
+
+/**
+ * Analyse every position of the game. For each position before a move we run MultiPV 3 and then make sure
+ * the PLAYED move has a value from the very same search (searchmoves when it is not among the top three).
+ */
+export async function analysePositions(engine, fens, { ucis = [], depth = 15, onProgress, shouldStop } = {}) {
   const out = [];
+  const ms = capFor(depth);
   for (let i = 0; i < fens.length; i++) {
     if (shouldStop && shouldStop()) throw new Error('cancelled');
     const ch = new Chess(fens[i]);
@@ -112,20 +124,64 @@ export async function analysePositions(engine, fens, { depth = 13, onProgress, s
     if (term) {
       out.push(term.draw ? { e: { cp: 0 }, terminal: true } : { e: { cp: term.white * 30000 }, terminal: true, mated: true });
     } else {
-      const r = await engine.go({ fen: fens[i], depth, multipv: 2 });
-      const l1 = r.lines[0], l2 = r.lines[1];
-      out.push({
-        e: l1.white,
-        best: l1.pv[0],
-        pv: l1.pv.slice(0, 8),
-        e2: l2 ? l2.white : null,
-        second: l2 ? l2.pv[0] : null,
-        pv2: l2 ? l2.pv.slice(0, 4) : null,
-      });
+      const r = await engine.go({ fen: fens[i], depth, movetime: ms, multipv: 3 });
+      const l1 = r.lines[0];
+      const entry = { e: l1.white, best: l1.pv[0], pv: l1.pv.slice(0, 8), top: slim(r.lines), depth };
+      const l2 = r.lines[1];
+      entry.e2 = l2 ? l2.white : null; entry.second = l2 ? l2.pv[0] : null; entry.pv2 = l2 ? l2.pv.slice(0, 4) : null;
+      const u = ucis[i];
+      if (u) {
+        const hit = r.lines.find((l) => l.pv[0] === u);
+        if (hit) entry.played = { e: hit.white, pv: hit.pv.slice(0, 6) };
+        else {
+          const p = await engine.go({ fen: fens[i], depth, movetime: ms, multipv: 1, searchmoves: [u] });
+          if (p.lines[0]) entry.played = { e: p.lines[0].white, pv: p.lines[0].pv.slice(0, 6) };
+        }
+      }
+      out.push(entry);
     }
     if (onProgress) onProgress((i + 1) / fens.length, i);
   }
   return out;
+}
+
+/** Which moves deserve a second, deeper look? Serious verdicts and moves whose two searches disagree. */
+export function findSuspicious(game, pos, limit = 18) {
+  const list = [];
+  for (let i = 0; i < game.ucis.length; i++) {
+    const b = pos[i], a = pos[i + 1];
+    if (!b || b.terminal || !b.played) continue;
+    const color = game.fens[i].split(' ')[1];
+    const L = effectiveLoss(b.e, b.played.e, color);
+    const isTop = b.best === game.ucis[i];
+    const drift = a && !a.terminal ? Math.abs(povWin(b.played.e, color) - povWin(a.e, color)) : 0;
+    const driftCp = a && !a.terminal ? Math.abs(moverCp(b.played.e, color) - moverCp(a.e, color)) : 0;
+    const score = (isTop ? 0 : L.loss) + Math.max(drift, driftCp / 20);
+    if ((!isTop && L.loss >= 5) || drift >= 10 || driftCp >= 200) list.push({ i, score });
+  }
+  return list.sort((x, y) => y.score - x.score).slice(0, limit).map((x) => x.i).sort((x, y) => x - y);
+}
+
+/** Re-search position i (and the position after it) deeper and overwrite the shallow results. */
+async function verifyPosition(engine, game, pos, i, depth) {
+  const ms = Math.round(capFor(depth) * 2.2);
+  const fen = game.fens[i];
+  const r = await engine.go({ fen, depth, movetime: ms, multipv: 3 });
+  const l1 = r.lines[0];
+  if (!l1) return;
+  const entry = { e: l1.white, best: l1.pv[0], pv: l1.pv.slice(0, 8), top: slim(r.lines), depth, verified: true };
+  const l2 = r.lines[1];
+  entry.e2 = l2 ? l2.white : null; entry.second = l2 ? l2.pv[0] : null; entry.pv2 = l2 ? l2.pv.slice(0, 4) : null;
+  const u = game.ucis[i];
+  const hit = r.lines.find((l) => l.pv[0] === u);
+  if (hit) entry.played = { e: hit.white, pv: hit.pv.slice(0, 6) };
+  else { const p = await engine.go({ fen, depth, movetime: ms, multipv: 1, searchmoves: [u] }); if (p.lines[0]) entry.played = { e: p.lines[0].white, pv: p.lines[0].pv.slice(0, 6) }; }
+  pos[i] = entry;
+  const next = pos[i + 1];
+  if (next && !next.terminal) {
+    const r2 = await engine.go({ fen: game.fens[i + 1], depth, movetime: ms, multipv: 1 });
+    if (r2.lines[0]) { next.e = r2.lines[0].white; next.pv = r2.lines[0].pv.slice(0, 8); next.best = r2.lines[0].pv[0]; }
+  }
 }
 
 /** Pure function: positions + game -> full review (no engine needed). */
@@ -140,40 +196,53 @@ export function buildReview(game, pos, { depth } = {}) {
     const wpB = povWin(before.e, color);
     const wpA = povWin(after.e, color);
     const isTop = before.best === ucis[i];
-    let loss = Math.max(0, wpB - wpA);
-    if (isTop) loss = Math.min(loss, 0.3);
-    // if the played move was the engine's 2nd line, use that line's value when it is better than a noisy follow-up eval
-    if (!isTop && before.second === ucis[i] && before.e2) loss = Math.min(loss, Math.max(0, wpB - povWin(before.e2, color)) + 1.5);
+    // the played move's value comes from the same search as the best move (legacy reviews fall back to the next position)
+    const playedE = before.played ? before.played.e : isTop ? before.e : after.e;
+    const L = effectiveLoss(before.e, playedE, color);
+    const loss = isTop ? 0 : L.loss;
     const inBook = book && isBookFen(fens[i + 1]) && !leftBook && i < 30;
     if (!inBook) leftBook = true;
     let cls = classifyLoss(loss, isTop);
-    let feats = null;
     const wpSecond = before.e2 ? povWin(before.e2, color) : null;
+    let feats = null;
     if (cls === 'best' || cls === 'excellent') {
       feats = moveFeatures(fens[i], ucis[i]);
-      if (isTop && wpSecond != null && wpB - wpSecond >= 18 && wpB > 20 && wpB < 97 && !(feats && feats.themes.includes('mate')) ) cls = 'great';
-      if (feats && feats.themes.includes('sacrifice') && loss <= 2 && wpA >= 45 && wpB < 90 && wpA > wpB - 6 && (isTop || wpSecond == null || wpB - wpSecond >= 5)) cls = 'brilliant';
+      cls = refineClass({ cls, isTop, loss, wpB, wpA: povWin(playedE, color), wpSecond, feats });
     }
     if (inBook && loss < 10) cls = 'book';
-    const ply = i;
-    const phase = phaseOf(fens[i], ply);
+    const phase = phaseOf(fens[i], i);
     const m = {
-      ply, color, san: sans[i], uci: ucis[i], fenBefore: fens[i], fenAfter: fens[i + 1],
+      ply: i, color, san: sans[i], uci: ucis[i], fenBefore: fens[i], fenAfter: fens[i + 1],
       moveNo: Math.floor((startFenPly(startFen) + i) / 2) + 1,
-      evalBefore: before.e, evalAfter: after.e,
+      evalBefore: before.e, evalAfter: after.e, evalPlayed: playedE,
       best: before.best || null, pv: before.pv || [], second: before.second || null, evalSecond: before.e2 || null,
-      replyPv: after.pv || [],
-      wpBefore: wpB, wpAfter: wpA, loss, cls, acc: moveAccuracy(loss), phase,
+      replyPv: after.pv || [], playedPv: before.played ? before.played.pv : [],
+      wpBefore: wpB, wpAfter: wpA, loss, cpLoss: isTop ? 0 : L.cpLoss, missedMate: !isTop && L.missedMate, cls, acc: moveAccuracy(loss), phase,
+      top: before.top || null, verified: !!before.verified,
+      openingName: cls === 'book' ? bookName(fens[i + 1]) : null,
     };
     if (before.best) { try { const c = new Chess(fens[i]); const mv = c.move({ from: before.best.slice(0, 2), to: before.best.slice(2, 4), promotion: before.best[4] }); m.bestSan = mv.san; } catch (e) { /* ignore */ } }
-    if (['inaccuracy', 'mistake', 'blunder', 'brilliant', 'great'].includes(cls)) {
-      try { m.coach = explainMove(m, { feats }); m.tags = m.coach.tags; } catch (e) { m.coach = null; m.tags = []; }
-    } else m.tags = [];
     moves.push(m);
   }
-  const summary = summarise(moves);
-  const opening = identifyOpening(sans, startFen);
-  return { version: 1, depth, startFen, moves, summary, opening, evals: pos.map((p) => compactEval(p.e)) };
+  const review = { version: REVIEW_VERSION, depth, startFen, moves, summary: null, opening: identifyOpening(sans, startFen), evals: pos.map((p) => compactEval(p.e)) };
+  attachCoach(review);
+  review.summary = summarise(moves);
+  return review;
+}
+
+/** (Re)generate the coach commentary for every move. Commentary is derived data and is not stored. */
+export function attachCoach(review) {
+  const prevUcis = [];
+  for (const m of review.moves) {
+    try { m.coach = explainMove(m, { prevUcis: prevUcis.slice() }); m.tags = m.coach.kind === 'mistake' ? m.coach.tags : []; } catch (e) { m.coach = null; m.tags = []; }
+    prevUcis.push(m.uci);
+  }
+  return review;
+}
+
+/** What gets saved to localStorage: everything except the (re-creatable) commentary text. */
+export function compactReview(review) {
+  return { ...review, moves: review.moves.map((m) => { const { coach, ...rest } = m; return { ...rest, tags: m.tags || [] }; }) };
 }
 
 function startFenPly(fen) { const p = fen.split(' '); return (p[1] === 'b' ? 1 : 0) + ((+p[5] || 1) - 1) * 2; }
@@ -216,9 +285,15 @@ export function accuracyToRating(acc, n = 20) {
   return 2800;
 }
 
-/** Full review with the engine. */
-export async function reviewGame(engine, game, { depth = 13, onProgress, shouldStop } = {}) {
-  const pos = await analysePositions(engine, game.fens, { depth, onProgress, shouldStop });
+/** Full review with the engine: one consistent pass, then a deeper second look at the moves that matter. */
+export async function reviewGame(engine, game, { depth = 15, onProgress, shouldStop } = {}) {
+  const pos = await analysePositions(engine, game.fens, { ucis: game.ucis, depth, shouldStop, onProgress: onProgress ? (p, i) => onProgress(p * 0.8, i) : null });
+  const flagged = findSuspicious(game, pos);
+  for (let k = 0; k < flagged.length; k++) {
+    if (shouldStop && shouldStop()) throw new Error('cancelled');
+    await verifyPosition(engine, game, pos, flagged[k], Math.min(22, depth + 4));
+    if (onProgress) onProgress(0.8 + 0.2 * ((k + 1) / flagged.length), flagged[k]);
+  }
   return buildReview(game, pos, { depth });
 }
 

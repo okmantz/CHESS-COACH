@@ -44,7 +44,7 @@ export class Board {
 
     this._buildSquares();
     this._bind();
-    this.setCoords(this.o.coords);
+    this.setCoords(this.o.coords !== false);
     this.el.dataset.theme = document.documentElement.dataset.board || 'classic';
   }
 
@@ -81,21 +81,27 @@ export class Board {
     }
   }
 
+  /**
+   * Coordinates: file letters (a-h) along the bottom edge, rank numbers (1-8) down the left edge. The colour of each
+   * label is the colour of the OTHER square type so it is always readable (a1 is dark, so its label is light).
+   */
   setCoords(on) {
-    this.o.coords = on;
+    this.o.coords = on !== false;
     this.coordLayer.replaceChildren();
-    if (!on) return;
+    if (!this.o.coords) return;
     for (let i = 0; i < 8; i++) {
       const fileSq = this._sqAt(i, 7), rankSq = this._sqAt(0, i);
-      const f = h('span.coord.file', FILES[FILES.indexOf(fileSq[0])]);
+      const dark = (sq) => (FILES.indexOf(sq[0]) + (+sq[1] - 1)) % 2 === 0;
+      const f = h('span.coord.file', { class: dark(fileSq) ? 'on-dark' : 'on-light' }, fileSq[0]);
       f.style.left = i * 12.5 + '%'; f.style.top = '87.5%';
-      f.classList.add(((i + 7) % 2 === 0) ? 'on-dark' : 'on-light');
-      const r = h('span.coord.rank', rankSq[1]);
+      const r = h('span.coord.rank', { class: dark(rankSq) ? 'on-dark' : 'on-light' }, rankSq[1]);
       r.style.top = i * 12.5 + '%'; r.style.left = '0';
-      r.classList.add(((0 + i) % 2 === 0) ? 'on-light' : 'on-dark');
       this.coordLayer.append(f, r);
     }
   }
+
+  /** Square-picking mode for lessons: while set, taps report the square instead of moving pieces. */
+  setSquareMode(fn) { this.squareMode = fn || null; if (!fn) { this.selected = null; } }
 
   /* ------------------------------------------------ rendering */
   /** @param fen position; @param opts {lastMove:{from,to}, animate:[{from,to}], check:sq} */
@@ -152,7 +158,7 @@ export class Board {
     this.orientation = v || (this.orientation === 'w' ? 'b' : 'w');
     this._buildSquares();
     for (const sq of Object.keys(this.pieces)) this._place(this.pieces[sq], sq);
-    this.setCoords(this.o.coords);
+    this.setCoords(this.o.coords !== false);
     this._refresh();
   }
 
@@ -238,7 +244,9 @@ export class Board {
   }
 
   _down(e) {
-    if (!this.o.interactive || e.button > 0) return;
+    if (e.button > 0) return;
+    if (this.squareMode) { const q = this._sqFromEvent(e); if (q) { e.preventDefault(); this.squareMode(q); } return; }
+    if (!this.o.interactive) return;
     if (this.promoEl) return;
     const sq = this._sqFromEvent(e);
     if (!sq) return;

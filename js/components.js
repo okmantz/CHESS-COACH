@@ -95,26 +95,31 @@ export function evalChart(review, { current, onSelect } = {}) {
 export function coachCard(m, { onShowBest, onRetry, onTask } = {}) {
   const c = m.coach;
   const wrap = h('div.card.coach-box');
-  const head = h('div.coach-head', h('div.coach-avatar', '🎓'), h('div.grow', h('div.row.tight', h('b', c ? c.title : `${m.moveNo}${m.color === 'w' ? '.' : '...'} ${m.san}`), classBadge(m.cls)), c ? h('div.small.muted', c.evalText) : h('div.small.muted', `Eval ${fmtEval(m.evalAfter)}`)));
+  const head = h('div.coach-head', h('div.coach-avatar', icon('sparkle', 20)), h('div.grow', h('div.row.tight', h('b', c ? c.title : `${m.moveNo}${m.color === 'w' ? '.' : '...'} ${m.san}`), classBadge(m.cls)), c ? h('div.small.muted', c.evalText) : h('div.small.muted', `Eval ${fmtEval(m.evalAfter)}`)));
   wrap.append(head);
   if (!c) {
-    const best = m.cls === 'best' || m.cls === 'excellent' || m.cls === 'good' || m.cls === 'book';
-    wrap.append(h('p', best ? `${m.san} is ${CLASSES[m.cls].label.toLowerCase()}${m.cls === 'book' ? ' — a known opening move.' : '.'}` : ''));
+    wrap.append(h('p', `${m.san} is ${CLASSES[m.cls].label.toLowerCase()}.`));
     if (m.bestSan && m.cls !== 'best' && m.cls !== 'book') wrap.append(h('p.small.muted', `The engine's first choice was ${m.bestSan}.`));
     return wrap;
   }
-  wrap.append(h('div.coach-sec', h('h4', c.kind === 'positive' ? 'Why it works' : 'What happened?'), h('p', c.what)));
-  if (c.kind === 'mistake') {
-    if (c.bestSan) wrap.append(h('div.coach-sec', h('h4', 'Better was'), h('p', h('b', c.bestSan), c.bestDesc ? ` — it ${c.bestDesc}.` : '.', c.bestLineSan ? h('span.muted', `  (${c.bestLineSan})`) : null)));
-    wrap.append(h('div.coach-sec', h('h4', 'What should you have considered?'), h('ul', c.consider.map((x) => h('li', x)))));
+  const mistake = c.kind === 'mistake';
+  if (c.headline) wrap.append(h('div.coach-headline', { class: mistake ? m.cls : 'good' }, c.headline));
+  wrap.append(h('div.coach-sec', h('h4', mistake ? 'What happened' : 'What the move does'), h('p', c.what)));
+  if (mistake) {
+    if (c.why && c.why.length) wrap.append(h('div.coach-sec', h('h4', 'Why it matters'), h('p', c.why.join(' '))));
+    if (c.idea) wrap.append(h('div.coach-sec', h('h4', 'The better idea'), h('p', c.idea)));
+    wrap.append(h('div.coach-sec', h('h4', 'What to consider next time'), h('ul', c.consider.map((x) => h('li', x)))));
+    if (c.principle) wrap.append(h('div.principle', icon('bulb', 16), h('span', c.principle)));
     if (c.recommendation) {
       wrap.append(h('div.rec-card', h('div.row.tight', icon('target', 16), h('b', 'Training recommendation: '), c.recommendation.label),
         h('div', c.recommendation.tasks.slice(0, 3).map((t) => h('button.btn.small', { onclick: () => onTask ? onTask(t) : runTask(t) }, t.label)))));
     }
+  } else if (c.extra && c.extra.length) {
+    wrap.append(h('div.coach-sec', c.extra.map((x) => h('p.small.muted', { style: { margin: '4px 0' } }, x))));
   }
   const acts = h('div.row.mt');
-  if (onShowBest && m.best) acts.append(h('button.btn.small', { onclick: onShowBest }, icon('eye', 15), 'Show best move'));
-  if (onRetry && c.kind === 'mistake') acts.append(h('button.btn.small.primary', { onclick: onRetry }, icon('repeat', 15), 'Try it again'));
+  if (onShowBest && m.best && m.best !== m.uci) acts.append(h('button.btn.small', { onclick: onShowBest }, icon('eye', 15), 'Show best move'));
+  if (onRetry && mistake) acts.append(h('button.btn.small.primary', { onclick: onRetry }, icon('repeat', 15), 'Try it again'));
   if (acts.children.length) wrap.append(acts);
   return wrap;
 }

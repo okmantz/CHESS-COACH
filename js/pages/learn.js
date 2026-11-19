@@ -3,8 +3,11 @@ import { h, icon, progress } from '../ui.js';
 import { OPENINGS, courseById } from '../data/openings.js';
 import { ENDGAMES, ENDGAME_CATS, endgameById } from '../data/endgames.js';
 import { MIDDLEGAMES, middlegameById } from '../data/middlegames.js';
+import { BASICS, BASICS_PARTS, basicById } from '../data/basics.js';
+import { TACTICS, TACTICS_PARTS, tacticById } from '../data/tactics.js';
 import { openingCourse, courseProgress } from '../learn/opening.js';
 import { guidedLesson, lessonDone } from '../learn/guided.js';
+import { lessonPlayer } from '../learn/lesson.js';
 import '../lessons.js';
 
 export default async function learnPage(view, ctx) {
@@ -13,8 +16,20 @@ export default async function learnPage(view, ctx) {
   view.replaceChildren(root);
   let teardown = () => {};
   const toHub = (t) => () => { ctx.navigate(t ? `#/learn/${t}` : '#/learn'); };
+  const done = (t, i) => lessonDone(t, i);
+  const frac = (list, t) => (list.length ? list.filter((x) => done(t, x.id)).length / list.length : 0);
 
   if (!track) { root.append(hub()); return; }
+  if (track === 'basics') {
+    const l = id && basicById(id);
+    if (l) { const k = BASICS.indexOf(l); const nx = BASICS[k + 1]; teardown = lessonPlayer(root, ctx, { track: 'basics', lesson: l, back: toHub('basics'), backLabel: 'How to play', nextLesson: nx ? { name: nx.name, href: `#/learn/basics/${nx.id}` } : null }); return () => teardown(); }
+    root.append(basicsList()); return;
+  }
+  if (track === 'tactics') {
+    const l = id && tacticById(id);
+    if (l) { const ordered = orderedTactics(); const k = ordered.indexOf(l); const nx = ordered[k + 1]; teardown = lessonPlayer(root, ctx, { track: 'tactics', lesson: l, back: toHub('tactics'), backLabel: 'Tactics', nextLesson: nx ? { name: nx.name, href: `#/learn/tactics/${nx.id}` } : null }); return () => teardown(); }
+    root.append(tacticsList()); return;
+  }
   if (track === 'openings') {
     if (id && courseById(id)) { teardown = openingCourse(root, ctx, courseById(id), toHub('openings')); return () => teardown(); }
     root.append(openingList()); return;
@@ -30,26 +45,47 @@ export default async function learnPage(view, ctx) {
   root.append(hub());
   return () => teardown();
 
+  function orderedTactics() { return TACTICS_PARTS.flatMap((_, p) => TACTICS.filter((t) => t.part === p)); }
+
   function hub() {
-    const s = store.get();
     const op = OPENINGS.reduce((a, c) => a + courseProgress(c), 0) / OPENINGS.length;
-    const en = ENDGAMES.filter((e) => lessonDone('endgames', e.id)).length / ENDGAMES.length;
-    const mg = MIDDLEGAMES.filter((e) => lessonDone('middlegames', e.id)).length / MIDDLEGAMES.length;
-    const card = (ic, title, text, p, href) => h('a.card.click', { href }, h('div.row.nowrapr', h('div.course-icon', ic), h('div.grow', h('h3', { style: { margin: 0 } }, title), h('div.small.muted', text))), h('div.mt', progress(p, { height: 6 })), h('div.xs.muted.mt', `${Math.round(p * 100)}% complete`));
-    return h('div', h('div.page-head', h('h1', 'Learn')),
-      h('p.muted.mb', 'A guided coach shows you the moves and ideas, then lets you play them yourself — against every sensible reply — until they stick.'),
-      h('div.grid.g3', card('📖', 'Openings', `${OPENINGS.length} courses with every main variation.`, op, '#/learn/openings'), card('⚔️', 'Middlegames', 'Plans and typical structures, scored move by move.', mg, '#/learn/middlegames'), card('🏁', 'Endgames', 'Mating patterns, pawn and rook endings.', en, '#/learn/endgames')),
-      h('div.card.flat.mt', h('b', 'How a lesson works'), h('ol.small.muted', { style: { paddingLeft: '18px', margin: '6px 0 0' } }, h('li', 'Watch — the coach plays the line and explains every idea.'), h('li', 'Practice — you play it from memory; wrong moves get explained, and the engine tells you whether your alternative is sound.'), h('li', 'Vary — choose the opponent\'s replies and learn the branches.'), h('li', 'Drill — random lines, no hints, until you get them clean three times.'))));
+    const bs = frac(BASICS, 'basics'), tc = frac(TACTICS, 'tactics'), en = frac(ENDGAMES, 'endgames'), mg = frac(MIDDLEGAMES, 'middlegames');
+    const nextBasic = BASICS.find((b) => !done('basics', b.id));
+    const card = (ic, title, text, p, href, meta) => h('a.card.click.course', { href }, h('div.row.nowrapr', h('div.course-icon', ic), h('div.grow', h('h3', { style: { margin: 0 } }, title), h('div.small.muted', text))), h('div.mt', progress(p, { height: 6 })), h('div.xs.muted.mt', `${meta} · ${Math.round(p * 100)}% complete`));
+    const total = BASICS.length + TACTICS.length + ENDGAMES.length + MIDDLEGAMES.length + OPENINGS.length;
+    return h('div',
+      h('div.page-head', h('h1', 'Learn'), h('span.tag.accent', `${total} courses & lessons`)),
+      h('p.muted.mb', 'A coach explains each idea, shows it on the board, then makes you play it yourself. Start at the top and work down, or jump to what you need.'),
+      h('a.card.click.hero-card', { href: nextBasic ? `#/learn/basics/${nextBasic.id}` : '#/learn/basics' },
+        h('div.row.nowrapr', h('div.course-icon.big', '🎓'), h('div.grow', h('div.eyebrow', bs >= 1 ? 'Course complete' : bs > 0 ? 'Continue' : 'Start here'), h('h2', { style: { margin: '2px 0 4px' } }, 'How to Play Chess'), h('div.small.muted', 'New to chess? A step-by-step course from how the pieces move to the three golden rules: control the centre, develop your pieces, connect your rooks.')), h('span.btn.primary', bs > 0 ? 'Continue' : 'Begin', icon('right', 16))),
+        h('div.mt', progress(bs, { height: 6 })), h('div.xs.muted.mt', `${BASICS.filter((b) => done('basics', b.id)).length} of ${BASICS.length} lessons`)),
+      h('h3.mt', 'Courses'),
+      h('div.grid.g2',
+        card('⚔️', 'Tactics', 'Forks, pins, skewers, discovered attacks, mating patterns and more.', tc, '#/learn/tactics', `${TACTICS.length} lessons`),
+        card('📖', 'Openings', 'Learn every main variation with the ideas behind the moves, for White and Black.', op, '#/learn/openings', `${OPENINGS.length} openings`),
+        card('🧭', 'Middlegames', 'Plans and typical structures, scored move by move.', mg, '#/learn/middlegames', `${MIDDLEGAMES.length} lessons`),
+        card('🏁', 'Endgames', 'Mating patterns, pawn endings, rook endings and key ideas.', en, '#/learn/endgames', `${ENDGAMES.length} lessons`)),
+      h('a.card.click.mt', { href: '#/coach-play' }, h('div.row.nowrapr', h('div.course-icon', '🤝'), h('div.grow', h('b', 'Play a game with Coach'), h('div.small.muted', 'Apply what you learn in a real game. The coach asks questions instead of giving answers, and builds a report of your habits.')), icon('right', 18))),
+      h('div.card.flat.mt', h('b', 'How a lesson works'), h('ol.small.muted', { style: { paddingLeft: '18px', margin: '6px 0 0' } }, h('li', 'Watch — the coach explains the idea and shows it on the board.'), h('li', 'Do — you play the move, tap the squares or answer the question; wrong tries get a specific explanation.'), h('li', 'Practice — drills and puzzles make the pattern stick.'))));
   }
-  function crumb(t) { return h('div.page-head', h('button.back', { onclick: toHub() }, icon('left', 16), 'Learn'), h('h1', t)); }
+  function crumb(t, sub) { return h('div.page-head', h('button.back', { onclick: toHub() }, icon('left', 16), 'Learn'), h('h1', t), sub ? h('span.muted.small', sub) : null); }
+  function lessonCard(track, l) { return h('a.card.click', { href: `#/learn/${track}/${l.id}` }, h('div.row.nowrapr', h('div.course-icon', l.icon), h('div.grow', h('b', l.name), h('div.xs.muted', l.summary)), done(track, l.id) ? h('span.tag.good', 'Done') : h('span.tag', l.time || l.level))); }
+  function basicsList() {
+    return h('div', crumb('How to Play Chess', `${BASICS.filter((b) => done('basics', b.id)).length}/${BASICS.length}`),
+      ...BASICS_PARTS.map((label, p) => h('div.mb', h('h3', label), h('div.grid.g2', BASICS.filter((b) => b.part === p).map((b) => lessonCard('basics', b))))));
+  }
+  function tacticsList() {
+    return h('div', crumb('Tactics', `${TACTICS.filter((b) => done('tactics', b.id)).length}/${TACTICS.length}`), h('p.muted.mb', 'Tactics are short, forcing combinations. Learn the patterns, then train them with puzzles.'),
+      ...TACTICS_PARTS.map((label, p) => h('div.mb', h('h3', label), h('div.grid.g2', TACTICS.filter((b) => b.part === p).map((b) => lessonCard('tactics', b))))));
+  }
   function openingList() {
     const group = (side, label) => h('div.mb', h('h3', label), h('div.grid.g2', OPENINGS.filter((c) => c.side === side).map((c) => { const p = courseProgress(c); return h('a.card.click', { href: `#/learn/openings/${c.id}` }, h('div.row.nowrapr', h('div.course-icon', c.icon), h('div.grow', h('b', c.name), h('div.xs.muted', c.tagline)), h('span.tag', c.level)), h('div.mt', progress(p, { height: 5 })), h('div.xs.muted.mt', `${c.lines.length} lines · ${Math.round(p * 100)}% learned`)); })));
-    return h('div', crumb('Openings'), group('w', 'Play as White'), group('b', 'Play as Black'));
+    return h('div', crumb('Openings', `${OPENINGS.length} openings`), group('w', 'Play as White'), group('b', 'Play as Black'));
   }
   function endgameList() {
-    return h('div', crumb('Endgames'), ...ENDGAME_CATS.map((cat) => h('div.mb', h('h3', cat), h('div.grid.g2', ENDGAMES.filter((e) => e.cat === cat).map((e) => h('a.card.click', { href: `#/learn/endgames/${e.id}` }, h('div.row.nowrapr', h('div.course-icon', e.icon), h('div.grow', h('b', e.name), h('div.xs.muted', e.summary)), lessonDone('endgames', e.id) ? h('span.tag.good', 'Done') : h('span.tag', e.level))))))));
+    return h('div', crumb('Endgames', `${ENDGAMES.length} lessons`), ...ENDGAME_CATS.map((cat) => h('div.mb', h('h3', cat), h('div.grid.g2', ENDGAMES.filter((e) => e.cat === cat).map((e) => h('a.card.click', { href: `#/learn/endgames/${e.id}` }, h('div.row.nowrapr', h('div.course-icon', e.icon), h('div.grow', h('b', e.name), h('div.xs.muted', e.summary)), done('endgames', e.id) ? h('span.tag.good', 'Done') : h('span.tag', e.level))))))));
   }
   function middlegameList() {
-    return h('div', crumb('Middlegames'), h('div.grid.g2', MIDDLEGAMES.map((e) => h('a.card.click', { href: `#/learn/middlegames/${e.id}` }, h('div.row.nowrapr', h('div.course-icon', e.icon), h('div.grow', h('b', e.name), h('div.xs.muted', e.summary)), lessonDone('middlegames', e.id) ? h('span.tag.good', 'Done') : h('span.tag', e.level))))));
+    return h('div', crumb('Middlegames', `${MIDDLEGAMES.length} lessons`), h('div.grid.g2', MIDDLEGAMES.map((e) => h('a.card.click', { href: `#/learn/middlegames/${e.id}` }, h('div.row.nowrapr', h('div.course-icon', e.icon), h('div.grow', h('b', e.name), h('div.xs.muted', e.summary)), done('middlegames', e.id) ? h('span.tag.good', 'Done') : h('span.tag', e.level))))));
   }
 }

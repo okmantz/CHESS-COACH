@@ -38,9 +38,15 @@ export function openingCourse(root, ctx, course, back) {
       h('button.back', { onclick: back }, icon('left', 16), 'Openings'),
       h('div.row.nowrapr.mb', h('div.course-icon', course.icon), h('div.grow', h('h2', { style: { margin: 0 } }, course.name), h('div.small.muted', course.tagline)), h('span.tag', course.side === 'w' ? 'As White' : 'As Black')),
       h('div.card.flat.mb', h('div.row.between', h('b', 'Key ideas'), h('span.xs.muted', `${Math.round(p * 100)}% learned`)), h('ul.ex-list.small', { style: { margin: '6px 0 0', paddingLeft: '18px' } }, course.ideas.map((i) => h('li', i))), h('div.mt', progress(p, { height: 6 }))));
-    body.replaceChildren(h('div.grid.g2',
+    body.replaceChildren(course.deep ? deepGuide() : null, h('div.grid.g2',
       ...course.lines.map((l, i) => h('button.card.click', { onclick: () => { st.li = i; start('watch'); } }, h('div.row.between', h('b', l.name), mastery(i)), h('div.xs.muted.mt', `${parseLine(l.moves).length} moves · ${lineStats(course.id, i).n} attempts`), h('div.row.mt.tight', h('span.chip', { onclick: (e) => { e.stopPropagation(); st.li = i; start('watch'); } }, 'Watch'), h('span.chip', { onclick: (e) => { e.stopPropagation(); st.li = i; start('practice'); } }, 'Practice'))))),
-      h('div.row.mt', h('button.btn.primary', { onclick: () => start('drill') }, icon('zap', 16), 'Drill all lines (no hints)'), h('button.btn', { onclick: () => { st.li = 0; start('practice', { choose: true }); } }, icon('sliders', 16), 'Explore variations')));
+      h('div.row.mt', h('button.btn.primary', { onclick: () => start('drill') }, icon('zap', 16), 'Drill every variation (no hints)'), h('button.btn', { onclick: () => { st.li = 0; start('practice', { choose: true }); } }, icon('sliders', 16), 'Explore variations')));
+  }
+
+  function deepGuide() {
+    const d = course.deep;
+    const sec = (t, items) => items && items.length ? h('div.coach-sec', h('h4', t), h('ul', items.map((x) => h('li', x)))) : null;
+    return h('div.card.mb', h('div.card-title', icon('book', 18), 'Study guide'), h('p', d.overview), sec('Plans for both sides', d.plans), sec('Typical mistakes', d.mistakes), sec('Traps and tricks to know', d.traps));
   }
 
   function start(mode, opts = {}) {
@@ -58,6 +64,9 @@ export function openingCourse(root, ctx, course, back) {
     let choose = !!opts.choose;
     const learnerSide = course.side;
     const lineMoves = mode === 'drill' ? null : parseLine(course.lines[lineIdx].moves);
+    // DRILL covers EVERY variation: a queue of all lines, weakest first, each drilled once per round
+    const queue = mode === 'drill' ? course.lines.map((_, i) => i).sort((a, b) => { const A = lineStats(course.id, a), B = lineStats(course.id, b); return (A.ok - B.ok) || ((A.last || 0) - (B.last || 0)) || Math.random() - 0.5; }) : [];
+    let qi = 0; const roundResults = [];
     const board = new Board(h('div'), { orientation: learnerSide, coords: settings.coords, legalDots: settings.legalDots, animate: settings.animations, autoQueen: true, interactive: mode !== 'watch',
       canSelect: (sq) => !locked && chess.get(sq) && chess.get(sq).color === chess.turn(),
       legalTargets: (sq) => legalTargetsFor(chess, sq), onMove: (m) => userMove(m) });
@@ -105,7 +114,7 @@ export function openingCourse(root, ctx, course, back) {
         if (i >= lineMoves.length) { finishWatch(); }
       }
       function finishWatch() {
-        const plan = PLANS[`${course.id}:${lineIdx}`];
+        const plan = course.lines[lineIdx].plan || PLANS[`${course.id}:${lineIdx}`];
         bubble(plan || 'End of the line. Now try it yourself from memory.', 'good');
         record(course.id, lineIdx, false); stopAuto();
       }
@@ -117,8 +126,7 @@ export function openingCourse(root, ctx, course, back) {
     }
 
     /* ---------------- PRACTICE / DRILL ---------------- */
-    const pickLine = () => { const alive = course.lines.map((_, i) => i); return alive[Math.floor(Math.random() * alive.length)]; };
-    if (mode === 'drill') { lineIdx = pickLine(); }
+    if (mode === 'drill') { lineIdx = queue[0]; }
     const hintBtn = h('button.btn', { onclick: () => hint() }, icon('bulb', 16), 'Hint');
     const undoBtn = h('button.btn', { onclick: () => restart() }, icon('repeat', 16), 'Restart');
     const showBtn = h('button.btn', { onclick: () => revealMove() }, icon('eye', 16), 'Show move');
@@ -130,16 +138,16 @@ export function openingCourse(root, ctx, course, back) {
       const ch = node.children;
       if (!ch.length) return null;
       if (isLearnerPly(course, node.ply + 1)) return ch[0];
-      // opponent: follow the chosen line when possible
-      if (mode === 'practice' && !choose) { const c = ch.find((x) => x.lineIds.includes(lineIdx)); if (c) return c; }
+      // opponent: follow the target line (practice) or the line being drilled, so every variation gets visited
+      if ((mode === 'practice' && !choose) || mode === 'drill') { const c = ch.find((x) => x.lineIds.includes(lineIdx)); if (c) return c; }
       return ch[Math.floor(Math.random() * ch.length)];
     }
     function restart() {
       chess.reset(); node = tree; mistakes = 0; hintLevel = 0; finished = false; pendingChoice = false; choices.replaceChildren();
-      if (mode === 'drill') lineIdx = pickLine();
-      title.firstChild.textContent = mode === 'drill' ? 'Drill' : course.lines[lineIdx].name;
+      if (mode === 'drill') lineIdx = queue[qi];
+      title.firstChild.textContent = mode === 'drill' ? `Drill · variation ${qi + 1} of ${queue.length}` : course.lines[lineIdx].name;
       say.replaceChildren(); board.clearOverlays(); show(null, false);
-      bubble(mode === 'drill' ? 'Drill: play the repertoire from memory. The opponent will choose a line at random.' : `Play the ${course.lines[lineIdx].name} from memory. I'll step in if you go astray.`);
+      bubble(mode === 'drill' ? `Drill ${qi + 1} of ${queue.length}: your opponent will steer into one of the variations of this opening. Play the repertoire from memory — every variation gets its turn.` : `Play the ${course.lines[lineIdx].name} from memory. I'll step in if you go astray.`);
       advance();
     }
     function advance() {
@@ -215,9 +223,24 @@ export function openingCourse(root, ctx, course, back) {
       credited.forEach((li) => record(course.id, li, clean));
       sfx(clean ? 'win' : 'good');
       bubble(clean ? `Perfect! ${line.name} learned without a single mistake.` : `Line complete with ${mistakes} slip${mistakes === 1 ? '' : 's'}. Repeat it until you can play it cleanly.`, clean ? 'good' : '');
-      const plan = PLANS[`${course.id}:${credited[0]}`];
+      const plan = line.plan || PLANS[`${course.id}:${credited[0]}`];
       if (plan) bubble(`What next? ${plan}`);
-      choices.replaceChildren(h('div.row', h('button.btn.primary', { onclick: () => restart() }, icon('repeat', 16), mode === 'drill' ? 'Next drill' : 'Again'), mode === 'practice' && lineIdx < course.lines.length - 1 ? h('button.btn', { onclick: () => { st.li = lineIdx + 1; start('watch'); } }, 'Next line') : null));
+      if (mode === 'drill') {
+        roundResults.push({ li: lineIdx, clean, mistakes });
+        const last = qi + 1 >= queue.length;
+        if (last) {
+          const cleanN = roundResults.filter((r) => r.clean).length;
+          bubble(`Round complete: you drilled all ${queue.length} variations — ${cleanN} clean, ${queue.length - cleanN} with slips.`, cleanN === queue.length ? 'good' : '');
+          choices.replaceChildren(h('div.card.flat', h('b', 'Round summary'), ...roundResults.map((r) => h('div.row.between.small', h('span', course.lines[r.li].name), h('span.tag', { class: r.clean ? 'good' : 'warn' }, r.clean ? 'Clean' : `${r.mistakes} slip${r.mistakes === 1 ? '' : 's'}`)))),
+            h('div.row.mt', h('button.btn.primary', { onclick: () => start('drill') }, icon('repeat', 16), 'Another round'), h('button.btn', { onclick: () => { alive = false; draw(); root.replaceChildren(head, body); } }, 'Back to the course')));
+        } else {
+          choices.replaceChildren(h('div.row', h('button.btn.primary', { onclick: () => { qi++; restart(); } }, icon('right', 16), `Next variation (${qi + 2} of ${queue.length})`)));
+        }
+      } else {
+        choices.replaceChildren(h('div.row', h('button.btn.primary', { onclick: () => restart() }, icon('repeat', 16), 'Again'),
+          lineIdx < course.lines.length - 1 ? h('button.btn', { onclick: () => { st.li = lineIdx + 1; start('practice'); } }, 'Practice next variation') : null,
+          h('button.btn', { onclick: () => start('drill') }, icon('zap', 16), 'Drill every variation')));
+      }
       stat.textContent = `Mistakes: ${mistakes}`;
     }
     restart();

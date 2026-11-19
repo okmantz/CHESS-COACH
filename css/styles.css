@@ -208,3 +208,57 @@ label.field { display: block; font-size: .8rem; font-weight: 700; color: var(--m
 @media (min-width: 960px) { .sticky-actions { bottom: 10px; } }
 @media (max-width: 480px) { .page { padding: 10px 10px 24px; } h1 { font-size: 1.45rem; } .card { padding: 14px; } .controls .btn span { font-size: .72rem; } .acc-val { font-size: 1.6rem; } }
 @media (prefers-reduced-motion: reduce) { * { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
+/* ======================================================================
+   v2 additions: board coordinates, lessons, coach play, polish
+   ====================================================================== */
+/* coordinates: file letters bottom-right of each bottom-rank square, rank numbers top-left of each left-file square */
+.coord { position: absolute; display: block; width: 12.5%; height: 12.5%; margin: 0; padding: 2px 4px; box-sizing: border-box; transform: none; font-size: clamp(9px, 2.1vw, 13px); font-weight: 800; line-height: 1; letter-spacing: 0; opacity: .95; pointer-events: none; font-family: var(--font); }
+.coord.file { transform: none; text-align: right; display: flex; align-items: flex-end; justify-content: flex-end; }
+.coord.rank { transform: none; text-align: left; display: flex; align-items: flex-start; justify-content: flex-start; }
+.coord.on-light { color: var(--dk); } .coord.on-dark { color: var(--lt); }
+.sq.mark-info::after { content: ""; position: absolute; inset: 0; background: rgba(98, 184, 255, .5); }
+.board.shake { animation: shake .3s; } @keyframes shake { 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+
+/* coach cards */
+.coach-headline { display: inline-block; padding: 3px 10px; border-radius: 99px; font-size: .78rem; font-weight: 750; margin: 2px 0 6px; background: var(--surface-3); }
+.coach-headline.blunder { background: rgba(239, 107, 107, .16); color: var(--bad); } .coach-headline.mistake { background: rgba(242, 140, 70, .16); color: #f2924b; } .coach-headline.inaccuracy { background: rgba(242, 184, 75, .16); color: var(--warn); } .coach-headline.good { background: rgba(95, 200, 143, .16); color: var(--good); }
+.coach-sec p { margin: 0 0 .5em; }
+.principle { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); font-weight: 600; font-size: .9rem; }
+.principle .icon { color: var(--accent); margin-top: 2px; }
+
+/* lessons */
+.lesson-card { padding: 16px; }
+.lesson-title { font-size: 1.05rem; font-weight: 800; margin-bottom: 8px; }
+.coach-line { display: flex; gap: 12px; align-items: flex-start; }
+.coach-text p { margin: 0 0 .7em; font-size: .96rem; line-height: 1.55; } .coach-text p:last-child { margin-bottom: 0; }
+.task-ask { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); font-weight: 650; }
+.task-ask .icon { color: var(--accent); margin-top: 2px; }
+.lesson-feedback { min-height: 0; } .lesson-feedback .say p { margin: 0 0 .4em; } .lesson-feedback .say p:last-child { margin: 0; }
+.lesson-task .quiz-opts { display: grid; gap: 8px; margin-top: 10px; }
+.quiz-opt { text-align: left; padding: 11px 14px; border-radius: 11px; border: 1px solid var(--border); background: var(--surface-2); font-weight: 600; transition: background .12s, border-color .12s; }
+.quiz-opt:hover:not(:disabled) { border-color: var(--accent); } .quiz-opt.right { background: rgba(95, 200, 143, .18); border-color: var(--good); } .quiz-opt.wrong { background: rgba(239, 107, 107, .14); border-color: var(--bad); opacity: .8; }
+.step-dots { display: flex; gap: 6px; justify-content: center; margin-top: 12px; flex-wrap: wrap; } .step-dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--surface-3); cursor: pointer; } .step-dots i.done { background: var(--good); } .step-dots i.on { outline: 2px solid var(--accent); outline-offset: 2px; }
+.lesson-done { text-align: center; padding: 8px 0; } .lesson-done .coach-sec { text-align: left; } .big-emoji { font-size: 46px; }
+.lesson-head h2 { font-size: 1.15rem; }
+
+/* hub */
+.hero-card { background: linear-gradient(135deg, var(--accent-soft), transparent 70%), var(--surface); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); padding: 18px; }
+.course-icon.big { width: 60px; height: 60px; font-size: 30px; }
+.eyebrow { font-size: .7rem; text-transform: uppercase; letter-spacing: .09em; color: var(--accent); font-weight: 800; }
+.course:hover, .card.click:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); transform: translateY(-1px); }
+.card.click { transition: border-color .15s, transform .12s, box-shadow .15s; } .card.click:hover { box-shadow: var(--shadow); }
+.coach-banner { background: linear-gradient(135deg, var(--accent-soft), transparent 75%), var(--surface); }
+
+/* coach play */
+select.select { appearance: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2398a2b6' stroke-width='2.5'><polyline points='6 9 12 15 18 9'/></svg>"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 34px; font-weight: 650; }
+.opp-card { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); } .opp-card .ln { width: 34px; height: 34px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font-weight: 800; }
+.checklist .cl-item { border: 1px solid var(--border-soft); border-radius: 11px; margin-top: 8px; overflow: hidden; }
+.cl-q { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 12px; background: var(--surface-2); border: 0; text-align: left; font-weight: 650; }
+.cl-a { padding: 10px 12px; font-size: .9rem; border-top: 1px solid var(--border-soft); } .cl-item.open.warn .cl-a { background: rgba(242, 184, 75, .1); } .cl-item.open.good .cl-a { background: rgba(95, 200, 143, .1); }
+.intercept { padding: 14px; border-radius: 12px; border: 1px solid var(--bad); background: rgba(239, 107, 107, .09); margin: 8px 0; animation: pop .22s; } .intercept p { margin: 8px 0; } .intercept .tell { color: var(--text); font-weight: 650; }
+.talk { padding: 8px 14px; } .talk .say:first-child { margin-top: 4px; }
+.row.around { justify-content: space-around; } .row.tight { gap: 6px; }
+.stat { text-align: center; } .stat b { display: block; font-size: 1.5rem; letter-spacing: -.02em; } .stat span { color: var(--muted); font-size: .78rem; }
+.card-title { display: flex; align-items: center; gap: 8px; font-weight: 800; margin-bottom: 10px; }
+.page-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }

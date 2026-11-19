@@ -3,7 +3,9 @@
 // at the opponent's side every different reply becomes a variation the learner drills.
 // (The test suite validates legality and the one-move-per-position rule.)
 
-export const OPENINGS = [
+import { MORE_OPENINGS } from './openings2.js';
+
+const BASE_OPENINGS = [
   {
     id: 'principles', name: 'Opening Principles', side: 'w', level: 'Start here', icon: '🧭',
     tagline: 'The ideas behind every good opening, shown in a model game.',
@@ -122,6 +124,8 @@ export const OPENINGS = [
     ],
   },
 ];
+
+export const OPENINGS = [...BASE_OPENINGS, ...MORE_OPENINGS];
 
 /** Typical plans after finishing a line, keyed "courseId:lineIndex" (falls back to the course ideas). */
 export const PLANS = {

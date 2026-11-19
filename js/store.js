@@ -25,7 +25,8 @@ export function defaults() {
     games: [],
     mistakes: [],
     puzzles: { rating: 800, solved: 0, attempts: 0, streak: 0, bestStreak: 0, themes: {}, seen: {}, rush: { best: 0, history: [] } },
-    lessons: { openings: {}, endgames: {}, middlegames: {} },
+    lessons: { openings: {}, endgames: {}, middlegames: {}, basics: {}, tactics: {}, strategy: {} },
+    coachPlay: { games: 0, level: 0, mode: 'guided', habits: {}, lastFocus: null },
     plan: { date: null, items: [], streak: 0, lastCompleted: null },
     activity: {},
   };
@@ -45,6 +46,8 @@ export function load() {
   try { raw = localStorage.getItem(KEY); } catch (e) { memoryFallback = true; }
   state = defaults();
   if (raw) { try { merge(state, JSON.parse(raw)); } catch (e) { console.warn('Could not parse saved data', e); } }
+  // one-time migration: board coordinates (a-h, 1-8) are always shown unless the player switches them off again
+  if (state.settings.coordsV2 !== true) { state.settings.coords = true; state.settings.coordsV2 = true; }
   return state;
 }
 

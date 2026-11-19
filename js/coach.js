@@ -3,7 +3,8 @@
 // sentence is grounded in something that was actually found in the position.
 import { Chess } from '../vendor/chess.js';
 import { moveFeatures, playLine, VAL, NAMES, kingInfo, phaseOf, nonPawnMaterial, material, boardMap } from './themes.js';
-import { fmtEval, povWin } from './evalmath.js';
+import { fmtEval, povWin, CLASSES } from './evalmath.js';
+import { moveInsight, narrateInsight, positionFacts, hangingPieces, threatsAgainst } from './insight.js';
 
 /* ------------------------------------------------------------------ taxonomy */
 
@@ -113,6 +114,26 @@ export const TAGS = {
 
 export const TAG_ORDER = Object.keys(TAGS);
 
+/** One memorable sentence per mistake type, shown at the end of a coach note. */
+export const PRINCIPLES = {
+  'hung-piece': 'Loose pieces drop off: before every move, check that each of your pieces is protected or not attacked.',
+  'bad-sacrifice': 'A sacrifice needs a forced follow-up. If you cannot calculate the continuation to the end, do not give the material.',
+  'missed-mate': 'Checks, captures, threats — look at every check first, because a forced mate beats everything else.',
+  'allowed-mate': 'Before you move, look at every check your opponent has in the new position, especially near your king.',
+  'missed-fork': 'Look for squares where one piece attacks two targets. Knights and queens are the usual forkers.',
+  'missed-pin': 'A pinned piece cannot defend. Attack it again and it falls.',
+  'missed-skewer': 'Check along lines: a valuable piece forced to move exposes the one behind it.',
+  'missed-discovered': 'Moving a blocker with a threat of its own creates two attacks at once.',
+  'missed-capture': 'Free material first: scan the enemy pieces for ones that are loose or attacked by something cheaper.',
+  'allowed-tactic': 'Ask what your move leaves behind: a piece that stops guarding something is often the real cost.',
+  'king-safety': 'Pawns in front of the king are its shield. Every pawn move there is permanent.',
+  'opening-principles': 'Control the centre, develop your pieces, castle, and connect your rooks — in that order of priority.',
+  'endgame-technique': 'In the endgame the king is a fighting piece and every tempo counts.',
+  conversion: 'When you are winning: trade pieces, avoid complications, and ask what your opponent wants before you act.',
+  defense: 'When worse, look for the most resilient move, not the most ambitious one.',
+  positional: 'Improve your worst piece, then look for the plan. Quiet moves decide most games.',
+};
+
 /** Human text for a training task. */
 export function taskLabel(t) {
   const th = THEME_LABELS[t.theme] || t.theme;
@@ -141,7 +162,7 @@ export function povEval(e, color) {
   return { cp: color === 'w' ? e.cp : -e.cp };
 }
 
-function sanOf(fen, uci) {
+export function sanOf(fen, uci) {
   try { const c = new Chess(fen); return c.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] }).san; } catch (e) { return uci; }
 }
 
@@ -219,15 +240,46 @@ function openingIssue(m, prevUcis = []) {
 
 /* ------------------------------------------------------------------ main entry */
 
+const SEVERITY = { inaccuracy: 'An inaccuracy — a small slip', mistake: 'A mistake — real ground given up', blunder: 'A blunder — a game-changing error' };
+
+const pawnsText = (n) => `${Math.abs(n).toFixed(1)} pawn${Math.abs(n) === 1 ? '' : 's'}`;
+
+/** One-line description of a best move, built from what it actually does. */
+function describeBest(fen, uci, phase) {
+  try {
+    const ins = moveInsight(fen, uci);
+    if (!ins) return { desc: '', sentences: [] };
+    return { desc: describeMove(ins.feats, ins.san), sentences: narrateInsight(ins, { phase, max: 3 }), ins };
+  } catch (e) { return { desc: '', sentences: [] }; }
+}
+
+/** Phase-appropriate reminder of what a position still needs. */
+export function phaseAdvice(fen, color, phase) {
+  try {
+    const f = positionFacts(fen, color);
+    if (phase === 'opening') {
+      const todo = [];
+      if (f.homeLeft > 0) todo.push(`develop the remaining ${f.homeLeft === 1 ? 'minor piece' : f.homeLeft + ' minor pieces'}`);
+      if (!f.castled && f.kingCentral) todo.push('castle');
+      if (!f.centerPawns.length) todo.push('claim a share of the centre');
+      if (f.castled && !f.rooksConnected) todo.push('connect your rooks');
+      return todo.length ? `Still on your opening to-do list: ${todo.join(', ')}.` : 'Your opening checklist is complete: centre, development, castling and connected rooks.';
+    }
+    if (phase === 'endgame') return 'Endgame reminder: activate the king, make a passed pawn, and keep your rooks active.';
+    return f.openFiles.length ? `Look at the open ${f.openFiles.length > 1 ? 'files' : 'file'} (${f.openFiles.join(', ')}) — rooks belong there.` : 'Improve your worst-placed piece before you commit to a plan.';
+  } catch (e) { return ''; }
+}
+
 /**
- * Explain a reviewed move.
+ * Explain a reviewed move. Returns {kind:'mistake'|'positive'|'good', title, headline, evalText, what, why, idea, consider, ...}
  * @param m  move record from buildReview()
  * @param ctx { feats?, prevUcis? }
  */
 export function explainMove(m, ctx = {}) {
+  if (['best', 'excellent', 'good', 'book'].includes(m.cls)) return explainGood(m, ctx);
   const color = m.color, enemy = opp(color);
   const moveLabel = `${m.moveNo}${color === 'w' ? '.' : '...'} ${m.san}`;
-  const pb = povEval(m.evalBefore, color), pa = povEval(m.evalAfter, color);
+  const pb = povEval(m.evalBefore, color), pa = povEval(m.evalPlayed || m.evalAfter, color);
   const played = ctx.feats || moveFeatures(m.fenBefore, m.uci);
   const best = m.best ? moveFeatures(m.fenBefore, m.best) : null;
   const replyUci = (m.replyPv || [])[0];
@@ -240,32 +292,25 @@ export function explainMove(m, ctx = {}) {
   const swing = lossPawns(m);
   const evalText = swing == null ? `${fmtPov(pb)} → ${fmtPov(pa)}` : `${swing > 0 ? '+' : '−'}${Math.abs(swing).toFixed(1)} pawns (${fmtPov(pb)} → ${fmtPov(pa)})`;
   const bestSan = m.bestSan || (m.best ? sanOf(m.fenBefore, m.best) : null);
-  const bestDesc = best ? describeMove(best, bestSan) : '';
-  const bestLineSan = m.pv && m.pv.length ? pvToSan(m.fenBefore, m.pv, 5) : '';
+  const bestInfo = m.best ? describeBest(m.fenBefore, m.best, m.phase) : { desc: '', sentences: [] };
+  const bestDesc = bestInfo.desc;
+  const bestLineSan = m.pv && m.pv.length ? pvToSan(m.fenBefore, m.pv, 6) : '';
+  const replyLineSan = m.replyPv && m.replyPv.length ? pvToSan(m.fenAfter, m.replyPv, 5) : '';
   const tags = [];
   const themes = [];
   let what = '', consider = [], primary = null, label = null;
   const to = m.uci.slice(2, 4);
   const piece = played ? played.info.piece : 'p';
-  const positive = m.cls === 'brilliant' || m.cls === 'great';
 
-  /* ---------- positive feedback */
-  if (positive) {
-    if (m.cls === 'brilliant') {
-      what = `You gave up material with ${m.san} and the engine confirms it works: the sacrifice keeps a strong position (${fmtPov(pa)}) because of what follows${bestLineSan ? ` — ${bestLineSan}` : ''}. Sacrifices like this are rare and hard to see.`;
-    } else {
-      what = `${m.san} was the only move that held the position together — the alternatives were much worse. ${best && bestDesc ? `It ${bestDesc}.` : ''}`;
-    }
-    return { kind: 'positive', title: moveLabel, evalText, what, consider: ['Notice how you found it: look for forcing moves and calculate to the end of the line.'], tags: [], themes: played ? played.themes : [], recommendation: null, bestSan, bestLineSan };
-  }
-
-  /* ---------- classify the mistake */
   const mateForMe = pb.mate != null && pb.mate > 0;
   const mateAgainstMe = pa.mate != null && pa.mate < 0;
 
   if (mateForMe && !(pa.mate != null && pa.mate > 0)) {
     primary = 'missed-mate'; themes.push('mate');
     what = `You had a forced checkmate in ${pb.mate} starting with ${bestSan}${bestLineSan ? ` (${bestLineSan})` : ''}. Instead, ${m.san} let it slip.`;
+  } else if (mateForMe && pa.mate != null && pa.mate > 0 && m.missedMate !== true) {
+    primary = 'missed-mate'; themes.push('mate');
+    what = `You are still winning, but ${m.san} takes a much longer route. ${bestSan} mates in ${pb.mate}${bestLineSan ? ` (${bestLineSan})` : ''}; with ${m.san} it takes ${pa.mate}.`;
   } else if (mateAgainstMe && !(pb.mate != null && pb.mate < 0)) {
     primary = 'allowed-mate'; themes.push('mate');
     what = `${m.san} allows ${replySan ? `${replySan}` : 'a forced attack'} and checkmate in ${Math.abs(pa.mate)}. Your king ${kingExposure(m)}.`;
@@ -281,9 +326,8 @@ export function explainMove(m, ctx = {}) {
     const capSq = reply.info.to;
     const capPiece = reply.info.captured;
     const wasDefender = (() => { try { return new Chess(m.fenBefore).attackers(capSq, color).includes(m.uci.slice(0, 2)) && capSq !== to; } catch (e) { return false; } })();
-    if (reply.themes.includes('fork') || reply.themes.includes('pin') || reply.themes.includes('skewer')) {
-      primary = 'allowed-tactic';
-    } else primary = 'hung-piece';
+    if (reply.themes.includes('fork') || reply.themes.includes('pin') || reply.themes.includes('skewer')) primary = 'allowed-tactic';
+    else primary = 'hung-piece';
     themes.push('hangingPiece');
     if (capSq === to) what = `${m.san} puts your ${pn(piece)} on a square where it can be captured: ${replySan} wins it${oppGain >= 3 ? '' : ' for very little in return'}.`;
     else if (wasDefender) what = `Moving your ${pn(piece)} removed the protection from your ${pn(capPiece)} on ${capSq} — ${replySan} wins material.`;
@@ -297,7 +341,7 @@ export function explainMove(m, ctx = {}) {
     const t = ['fork', 'skewer', 'pin', 'discovered'].find((x) => best.themes.includes(x));
     primary = `missed-${t}`; themes.push(t);
     what = `There was a tactic: ${bestSan} ${bestDesc}. ${m.san} missed it${bestGain >= 2 ? `, which would have won about ${bestGain} point${bestGain === 1 ? '' : 's'} of material` : ''}.`;
-  } else if (best && (best.themes.includes('freePiece') || best.themes.includes('winsExchange')) && m.loss >= 8) {
+  } else if (best && (best.themes.includes('freePiece') || best.themes.includes('winsExchange')) && m.loss >= 6) {
     primary = 'missed-capture'; themes.push('hangingPiece');
     what = `${bestSan} ${bestDesc}. ${m.san} let that chance go.`;
   } else if (best && best.themes.includes('mate') && m.loss >= 8) {
@@ -316,8 +360,8 @@ export function explainMove(m, ctx = {}) {
     if (best && best.info.piece === 'k' && piece !== 'k') tip = 'In endgames the king is an active piece — it belonged in the action here. ';
     else if (best && best.themes.includes('promotion')) tip = 'A pawn promotion was available — count the pawn races move by move. ';
     else if (np.total === 0) tip = 'In king-and-pawn endings everything is about the opposition and key squares. ';
-    what = `${tip}${bestSan ? `${bestSan} ${bestDesc || 'was stronger'}.` : ''} ${m.san} gave up ${Math.abs(swing || 0).toFixed(1)} pawns of evaluation.`;
-  } else if (pb.cp != null && povWin(m.evalBefore, color) >= 75 && povWin(m.evalAfter, color) < 62) {
+    what = `${tip}${bestSan ? `${bestSan} ${bestDesc || 'was stronger'}.` : ''} ${m.san} gave up ${pawnsText(swing || 0)} of evaluation.`;
+  } else if (pb.cp != null && povWin(m.evalBefore, color) >= 75 && povWin(m.evalPlayed || m.evalAfter, color) < 62) {
     primary = 'conversion';
     what = `You were clearly better (${fmtPov(pb)}), but ${m.san} let the advantage slip (${fmtPov(pa)}). ${bestSan ? `${bestSan} ${bestDesc || 'kept control'}.` : ''}`;
   } else if (povWin(m.evalBefore, color) <= 35) {
@@ -325,21 +369,81 @@ export function explainMove(m, ctx = {}) {
     what = `The position was already difficult (${fmtPov(pb)}), and ${m.san} made it worse (${fmtPov(pa)}). ${bestSan ? `${bestSan} ${bestDesc || 'was the toughest defense'}.` : ''}`;
   } else {
     primary = 'positional';
-    what = `${m.san} gives up ${Math.abs(swing || 0).toFixed(1)} pawns of evaluation compared with ${bestSan || 'the best move'}${bestDesc ? `, which ${bestDesc}` : ''}. ${best && (best.themes.includes('capture') || best.themes.includes('check')) && !played.themes.includes('capture') ? 'A forcing move was available.' : 'The engine\'s choice is more active or more accurate.'}`;
+    what = `${m.san} gives up ${pawnsText(swing || 0)} of evaluation compared with ${bestSan || 'the best move'}${bestDesc ? `, which ${bestDesc}` : ''}. ${best && (best.themes.includes('capture') || best.themes.includes('check')) && !played.themes.includes('capture') ? 'A forcing move was available.' : 'The engine\'s choice is more active or more accurate.'}`;
   }
 
   tags.push(primary);
   const meta = TAGS[primary] || TAGS.positional;
   label = label || meta.label;
-  consider = meta.consider;
-  const tasks = meta.tasks;
-  const out = {
-    kind: 'mistake', title: moveLabel, evalText, what, consider,
-    bestSan, bestDesc, bestLineSan,
+
+  /* why it matters: the opponent's best reply and where the evaluation ends up */
+  const why = [];
+  if (replySan && !mateAgainstMe) why.push(`Your opponent's best reply is ${replySan}${replyLineSan && replyLineSan.split(' ').length > 2 ? `, and the engine's line continues ${replyLineSan}` : ''}.`);
+  if (oppGain >= 1 && !mateAgainstMe) why.push(`Played out, that costs you about ${oppGain} point${oppGain === 1 ? '' : 's'} of material.`);
+  if (swing != null) why.push(`The evaluation moves from ${fmtPov(pb)} to ${fmtPov(pa)} — ${m.cls === 'blunder' ? 'enough to decide the game' : m.cls === 'mistake' ? 'a clear swing toward your opponent' : 'a small but real drift'}.`);
+  else if (mateAgainstMe) why.push('Once the forced mate appears there is nothing left to defend with — this is the moment the game was lost.');
+
+  /* the better idea */
+  let idea = '';
+  if (bestSan) {
+    const nar = bestInfo.sentences.length ? bestInfo.sentences.slice(0, 2).join(' ') : (bestDesc ? `It ${bestDesc}.` : '');
+    idea = `${bestSan} is the engine's choice. ${nar}${bestLineSan ? ` The main line runs ${bestLineSan}.` : ''} That keeps the position at ${fmtPov(pb)} for you.`;
+  }
+
+  /* what to consider: the generic checklist, plus what was actually loose after this move */
+  consider = [...meta.consider];
+  const loose = hangingPieces(m.fenAfter, color).filter((x) => x.type !== 'p');
+  if (loose.length) consider.unshift(`Blunder check: after ${m.san}, your ${loose.slice(0, 2).map((x) => `${pn(x.type)} on ${x.square}`).join(' and ')} could be captured. Spotting that before you move is the habit to build.`);
+  if (m.phase === 'opening' && primary !== 'opening-principles') consider.push(phaseAdvice(m.fenAfter, color, 'opening'));
+
+  return {
+    kind: 'mistake', title: moveLabel, evalText, headline: `${SEVERITY[m.cls] || 'A mistake'}`, what, why, idea, consider,
+    principle: PRINCIPLES[primary] || PRINCIPLES.positional,
+    bestSan, bestDesc, bestLineSan, replySan, replyLineSan,
     tags, themes,
-    recommendation: { label, tasks: tasks.map((t) => ({ ...t, label: taskLabel(t) })) },
+    recommendation: { label, tasks: meta.tasks.map((t) => ({ ...t, label: taskLabel(t) })) },
   };
-  return out;
+}
+
+/** Commentary for good moves (best/excellent/good/book) and for brilliant / great ones. */
+export function explainGood(m, ctx = {}) {
+  const color = m.color;
+  const moveLabel = `${m.moveNo}${color === 'w' ? '.' : '...'} ${m.san}`;
+  const pb = povEval(m.evalBefore, color), pa = povEval(m.evalPlayed || m.evalAfter, color);
+  let ins = null;
+  try { ins = moveInsight(m.fenBefore, m.uci); } catch (e) { ins = null; }
+  const sentences = ins ? narrateInsight(ins, { phase: m.phase, max: 3 }) : [];
+  const evalText = `${fmtPov(pb)} → ${fmtPov(pa)}`;
+  const label = (CLASSES[m.cls] || {}).label || 'Good';
+  const bestSan = m.bestSan || (m.best ? sanOf(m.fenBefore, m.best) : null);
+  const bestLineSan = m.pv && m.pv.length ? pvToSan(m.fenBefore, m.pv, 5) : '';
+  const extra = [];
+  const positive = m.cls === 'brilliant' || m.cls === 'great';
+  let what = sentences.join(' ');
+  let headline = label;
+
+  if (m.cls === 'brilliant') {
+    headline = 'Brilliant — a sound sacrifice';
+    what = `You gave up material with ${m.san} and the engine confirms it works: the position stays strong for you (${fmtPov(pa)}) because of what follows${bestLineSan ? ` — ${bestLineSan}` : ''}. ${what} Sacrifices like this are rare and hard to see.`;
+    extra.push('How to find these: look for forcing moves (checks, captures, threats) and calculate every reply to the end of the line.');
+  } else if (m.cls === 'great') {
+    headline = 'Great — the only move that works';
+    what = `${m.san} was the move that held everything together; the alternatives were clearly worse. ${what}`;
+    extra.push('Moves like this are found by comparing candidate moves, not by playing the first reasonable idea.');
+  } else if (m.cls === 'book') {
+    headline = 'Book move';
+    what = `A well-known opening move${m.openingName ? ` (${m.openingName})` : ''}. ${what}`;
+    extra.push('Opening theory is built from these moves — knowing the idea behind each one matters more than memorising the order.');
+  } else if (m.cls === 'best') {
+    headline = 'Best move';
+    if (!what) what = 'The engine agrees: this is the strongest move in the position.';
+  } else {
+    headline = m.cls === 'excellent' ? 'Excellent — almost the engine\'s choice' : 'Good — solid and playable';
+    if (bestSan && bestSan !== m.san) extra.push(`The engine's first choice was ${bestSan}${m.cpLoss >= 10 ? `, worth about ${(m.cpLoss / 100).toFixed(1)} pawns more` : ', but the difference is tiny'}. ${m.cls === 'good' ? 'Look at it afterwards and ask why it is a little better.' : ''}`.trim());
+  }
+  const adv = phaseAdvice(m.fenAfter, color, m.phase);
+  if (adv && m.phase !== 'middlegame' && !positive) extra.push(adv);
+  return { kind: positive ? 'positive' : 'good', title: moveLabel, headline, evalText, what, why: [], idea: '', extra, consider: [], tags: [], themes: ins ? ins.themes : [], recommendation: null, bestSan, bestLineSan };
 }
 
 function kingExposure(m) {

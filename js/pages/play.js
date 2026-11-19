@@ -60,8 +60,11 @@ function setupView(resumable, onStart, onResume) {
   const ratedRow = h('div');
 
   const draw = () => {
-    levelBox.replaceChildren(...LEVELS.map((l) => h('button.level-item', { class: l.n === cfg.level ? 'active' : '', onclick: () => { cfg.level = l.n; draw(); } },
-      h('div.ln', String(l.n)), h('div.grow', h('b', l.name), h('div.xs.muted', l.blurb)), h('span.tag', `~${l.elo}`))));
+    const cur = levelByN(cfg.level);
+    levelBox.replaceChildren(
+      h('select.select.block', { 'aria-label': 'Opponent', onchange: (e) => { cfg.level = +e.target.value; draw(); } },
+        LEVELS.map((l) => h('option', { value: l.n, selected: l.n === cfg.level }, `${l.n}. ${l.name} (~${l.elo})`))),
+      h('div.opp-card', h('div.ln', String(cur.n)), h('div.grow', h('b', cur.name), h('div.small.muted', cur.blurb)), h('span.tag', `~${cur.elo}`)));
     tcBox.replaceChildren(...TCS.map((t) => h('button', { class: t.id === cfg.tc ? 'active' : '', onclick: () => { cfg.tc = t.id; draw(); } }, t.label, h('small', t.sub))));
     colorBox.replaceChildren(...[['w', 'White', 'wk'], ['r', 'Random', 'wn'], ['b', 'Black', 'bk']].map(([id, name, code]) => h('button', { class: cfg.color === id ? 'active' : '', onclick: () => { cfg.color = id; draw(); } },
       h('div.piece', { class: `p-${code}` }), name)));
@@ -74,6 +77,7 @@ function setupView(resumable, onStart, onResume) {
 
   root.append(
     h('div.page-head', h('h1', 'Play')),
+    h('a.card.click.mb.coach-banner', { href: '#/coach-play' }, h('div.row.nowrapr', h('div.course-icon', '🤝'), h('div.grow', h('b', 'Play a game with Coach'), h('div.small.muted', 'A guided game: the coach asks you the right questions before you move, stops blunders, and reviews your habits afterwards.')), h('span.btn.primary', 'Start', icon('right', 16)))),
     resumable ? h('div.card.mb', { style: { borderColor: 'var(--accent)' } }, h('div.row', h('div.grow', h('b', 'Game in progress'), h('div.small.muted', `vs ${levelByN(resumable.level).name} · ${resumable.sans.length} moves`)),
       h('button.btn.primary', { onclick: () => onResume(resumable) }, 'Resume'), h('button.btn.ghost', { onclick: () => { localStorage.removeItem(LIVE_KEY); location.hash = '#/play?new=1'; location.reload(); } }, 'Abandon'))) : null,
     h('div.card.mb.row', h('div.rank-ring', { style: { '--p': rk.progress * 100, '--c': rk.color } }, h('div', h('b', String(rating)), h('span', rk.name))),

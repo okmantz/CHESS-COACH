@@ -107,7 +107,43 @@ export const ENDGAMES = [
     ],
     hint: 'Bring the king forward while the rook cuts the enemy king off.',
   },
+  {
+    id: 'square-rule', cat: 'Pawn endings', name: 'The Rule of the Square', icon: '⬜', level: 'Beginner', goal: 'win', side: 'w',
+    fen: '8/8/8/8/k4P2/8/8/6K1 w - - 0 1',
+    summary: 'Can the king catch the runaway pawn? Learn to count squares instead of guessing.',
+    ideas: [
+      'Draw a square from the pawn to the promotion rank: if the enemy king can step into it, he catches the pawn.',
+      'Push the pawn when the king is outside the square; use your king to escort it when he is not.',
+      'Keep your own king close to the pawn so a promoted queen is protected and the enemy king cannot stop you.',
+      'On the second rank a pawn may move two squares, which makes the square bigger.',
+    ],
+    hint: 'Check whether the black king can step into the square before you push.',
+  },
+  {
+    id: 'bishop-hold', cat: 'Minor-piece endings', name: 'Same-Colour Bishops: Hold the Draw', icon: '♝', level: 'Intermediate', goal: 'draw', holdMoves: 12, side: 'w',
+    fen: '8/8/4k3/5p2/4b3/3B4/3K4/8 w - - 0 1',
+    summary: 'Bishops of the same colour: defend actively and keep the bishop on the long diagonal.',
+    ideas: [
+      'Keep your bishop active — attack the pawn rather than passively defending.',
+      'Place the king in front of the passed pawn and keep the bishop on a diagonal the enemy bishop cannot attack.',
+      'Do not trade into a lost pawn ending; check the king race before every trade.',
+      'Use the king: in endgames it is a strong piece.',
+    ],
+    hint: 'Keep your bishop on the same diagonal as the enemy bishop to offer a trade whenever the pawn endgame is drawn.',
+  },
+  {
+    id: 'knight-hold', cat: 'Minor-piece endings', name: 'Knight Endings: Stay Active', icon: '♞', level: 'Intermediate', goal: 'draw', holdMoves: 12, side: 'w',
+    fen: '8/8/3k4/8/8/2NK4/8/7n w - - 0 1',
+    summary: 'Knights are short-range pieces: centralise yours and keep the king close.',
+    ideas: [
+      'A centralised knight can reach almost any square in a few moves; a knight on the rim is nearly useless.',
+      'Move the king to the centre and keep it close to your knight.',
+      'Be careful of knight forks and of leaving the knight where it can be trapped on the edge.',
+      'Count tempo: a knight needs two moves to change square colour twice.',
+    ],
+    hint: 'Centralise the knight to e4 or d4 and bring the king forward.',
+  },
 ];
 
-export const ENDGAME_CATS = ['Checkmate patterns', 'Pawn endings', 'Rook endings', 'Convert winning positions'];
+export const ENDGAME_CATS = ['Checkmate patterns', 'Pawn endings', 'Minor-piece endings', 'Rook endings', 'Convert winning positions'];
 export const endgameById = (id) => ENDGAMES.find((x) => x.id === id);
