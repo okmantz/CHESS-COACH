@@ -16,6 +16,18 @@ Stockfish does the analysis; a rule-based coach explains *why* a move matters an
 - **Progress** — rating, accuracy by phase, tactical strengths/weaknesses, trends, activity.
 - **Profile** — name, avatar/photo, colour, board theme, light/dark, sound; export/import backup. Installable PWA that works offline.
 
+## The road from 600 to 2600
+
+Ten opponents, each with a face, a personality and speech bubbles (`js/bot.js`, `js/personas.js`): 600, 800, 1000, 1200, 1400, 1600, 1800, 2000, 2200, 2600. In **Play with Coach** you climb them one rung at a time (`js/ladder.js`). Each rung has a mission, study steps (lessons and puzzle themes with live progress ticks) and a gate: win with the target accuracy, or win three games. The coach hand-holds more on the low rungs and fades out as you climb. Elo labels are approximate (the lower levels are shallow-search + deliberate slips, the upper levels use Stockfish's `UCI_Elo`).
+
+## Customisation
+
+Profile has 17 portrait avatars (`assets/avatars/*.webp`, replace with higher-resolution files of the same name any time), 12 emblems, photo upload, 16 board themes, 7 piece sets (`assets/pieces/<set>`, regenerate with `node scripts/gen-piece-sets.mjs`), highlight colours, move-hint style, board frame, theme (dark / black / light), text size, reduce motion and a bot chat toggle. All of it lives in `js/skins.js`.
+
+## Learn
+
+Basics, Tactics, **Strategy** (the "why" behind moves, `js/data/strategy.js`), Openings, Middlegames, Endgames and a **Glossary** (`js/data/glossary.js`). `tests/ladder.test.mjs` fails if the road points to a lesson that does not exist.
+
 ## Deploy on GitHub Pages (2 minutes)
 
 1. Create a new GitHub repo and push these files to `main`.
