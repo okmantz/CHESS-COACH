@@ -421,7 +421,8 @@ html[data-frame="accent"] .board { box-shadow: 0 0 0 4px var(--accent), 0 0 28px
 /* ---------- phone fit tuning ---------- */
 .status-line:empty { display: none; }
 .board-col .player-bar.me { padding: 4px 4px 0; min-height: 0; }
-.game-layout.fit .board-box { width: min(100%, max(296px, calc(100dvh - 470px))); }
+.game-layout.fit .board-box { width: min(100%, max(264px, calc(100dvh - 450px))); }
+@media (min-width: 960px) { .game-layout.fit .board-box { width: min(100%, max(320px, calc(100dvh - 300px))); } }
 @media (max-width: 959px) {
   .actions-bar .btn { padding: 6px 2px; }
   .actions-bar .btn svg { width: 16px; height: 16px; }
@@ -429,14 +430,19 @@ html[data-frame="accent"] .board { box-shadow: 0 0 0 4px var(--accent), 0 0 28px
   .game-layout.fit .side-col { min-height: 0; }
 }
 @media (max-width: 959px) and (orientation: portrait) {
-  body.in-game .page.game { height: 100dvh; max-width: none; display: flex; flex-direction: column; overflow: hidden; }
-  body.in-game .game-layout.fit { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-  body.in-game .game-layout.fit .board-col { flex: none; }
-  body.in-game .game-layout.fit .side-col { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-  body.in-game .game-layout.fit .dock { flex: 1; min-height: 0; }
-  body.in-game .game-layout.fit .dock-body { flex: 1; min-height: 0; }
-  body.in-game .game-layout.fit .dock-feed { flex: 1; min-height: 0; max-height: none; }
+  /* The page scrolls normally. (It used to be locked to the screen height, which squeezed the coach panel to nothing on
+     small phones and made it impossible to scroll down to a hint.) */
+  body.in-game .page.game { max-width: none; min-height: 100dvh; height: auto; overflow: visible; display: block; }
+  body.in-game .game-layout.fit .dock { min-height: 92px; overflow: visible; }
+  /* newest comment first; older ones scroll inside a short list so the page stays a sensible length */
+  body.in-game .game-layout.fit .dock-feed { max-height: 42dvh; overflow-y: auto; overscroll-behavior: auto; }
+  /* the "think first" checklist sits right under the buttons, never buried below a long feed */
+  body.in-game .game-layout.fit .side-col { display: flex; flex-direction: column; }
+  body.in-game .game-layout.fit .checklist { order: 2; }
+  body.in-game .game-layout.fit .dock { order: 3; }
 }
+.game-layout.fit .checklist > div:last-child { max-height: 38dvh; overflow-y: auto; }
+@media (min-width: 960px) { .game-layout.fit .dock { min-height: 150px; } }
 .checklist { flex: none; padding: 0; overflow: hidden; }
 .checklist .cl-toggle { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 12px; background: none; border: 0; color: var(--text); font: inherit; text-align: left; cursor: pointer; min-height: 44px; }
 .checklist > div:last-child { padding: 0 12px 10px; }
@@ -461,3 +467,61 @@ html[data-frame="accent"] .board { box-shadow: 0 0 0 4px var(--accent), 0 0 28px
 .gloss-board { width: 112px; flex: none; } .gloss-board .board { box-shadow: none; border-radius: 6px; }
 .gloss .row { align-items: flex-start; }
 .path-card { border-left: 4px solid var(--tier, var(--accent)); }
+
+
+/* =====================================================================================================================
+   Crowns: small rewards shown by an opponent's avatar once you have played them
+   ===================================================================================================================== */
+.crown-wrap { position: relative; display: block; flex: none; line-height: 0; }
+.opp-card .crown-wrap { width: 100%; }
+.crowns { display: inline-flex; align-items: center; gap: 1px; line-height: 0; vertical-align: middle; }
+.crown svg { display: block; fill: rgba(150, 158, 178, .28); stroke: rgba(150, 158, 178, .45); stroke-width: .8; stroke-linejoin: round; }
+.crown.on svg { fill: #f5c451; stroke: #b9791a; filter: drop-shadow(0 0 3px rgba(245, 196, 81, .55)); }
+.crown-pill { position: absolute; left: 50%; bottom: 3px; transform: translateX(-50%); display: inline-flex; padding: 2px 5px 2px; border-radius: 99px; background: rgba(8, 10, 18, .78); border: 1px solid rgba(255, 255, 255, .13); backdrop-filter: blur(4px); box-shadow: 0 2px 6px rgba(0, 0, 0, .35); pointer-events: none; }
+.crown-pill.earned { border-color: rgba(245, 196, 81, .5); }
+.crown-inline { display: inline-flex; padding: 1px 6px; border-radius: 99px; background: color-mix(in srgb, var(--surface-3) 80%, transparent); }
+.crown-banner { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.crown-banner .crowns.big { gap: 5px; }
+.crown-banner .crown.on { animation: crown-pop .5s cubic-bezier(.2, .9, .3, 1.4) both; }
+.crown-banner .crown.on:nth-child(2) { animation-delay: .12s; } .crown-banner .crown.on:nth-child(3) { animation-delay: .24s; }
+@keyframes crown-pop { from { transform: scale(.2) rotate(-18deg); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* =====================================================================================================================
+   Analyze (game review): the board stays in view while you read the coach, so you never scroll back up to press "next"
+   ===================================================================================================================== */
+.key-bar { display: flex; align-items: center; gap: 8px; }
+.review-layout .board-col { min-width: 0; }
+@media (min-width: 960px) {
+  .review-layout .board-col { position: sticky; top: 12px; align-self: start; }
+}
+@media (max-width: 959px) {
+  body.in-review .topbar { display: none; }
+  .review-layout { gap: 10px; }
+  .review-layout .board-col {
+    position: sticky; top: 0; z-index: 8; gap: 4px; margin: 0 -14px; padding: calc(6px + var(--safe-t)) 14px 6px;
+    background: color-mix(in srgb, var(--bg) 97%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border-soft);
+  }
+  /* the board is as large as fits while leaving room (about 40% of the screen) for the coach underneath */
+  .review-layout .board-row { width: min(100%, calc(max(200px, 58dvh - 128px) + 32px)); margin-inline: auto; }
+}
+@media (max-width: 480px) { .review-layout .board-col { margin: 0 -10px; padding-inline: 10px; } }
+@media (max-width: 959px) {
+  .review-layout .player-bar { min-height: 0; padding: 0 2px; gap: 8px; }
+  .review-layout .player-bar .avatar { width: 26px !important; height: 26px !important; font-size: 14px !important; }
+  .review-layout .player-bar .pname { font-size: .88rem; }
+  .review-layout .captured { height: 14px; } .review-layout .captured .piece { width: 14px; height: 14px; }
+  .review-layout .nav-controls { gap: 5px; } .review-layout .nav-controls .btn { max-width: none; padding: 7px 4px; min-height: 40px; }
+  .review-layout .board { box-shadow: 0 4px 14px rgba(0, 0, 0, .3); }
+  /* reading order on a phone: coach first, then the chart, accuracy and actions */
+  .review-layout .side-col { gap: 10px; }
+  .review-layout .tabs-wrap { order: 1; }
+  .review-layout .chart-box { order: 2; } .review-layout .chart { height: 84px; }
+  .review-layout .acc-card { order: 3; }
+  .review-layout .side-col > .row { order: 4; }
+  .review-layout .movelist { max-height: none; }
+}
+@media (max-width: 959px) and (orientation: landscape) and (max-height: 560px) {
+  .review-layout { grid-template-columns: min(calc(100dvh - 120px), 46vw) minmax(0, 1fr); align-items: start; }
+  .review-layout .board-col { margin: 0; padding: 4px 0; border-bottom: 0; background: transparent; backdrop-filter: none; top: 4px; }
+  .review-layout .board-row { width: 100%; }
+}
