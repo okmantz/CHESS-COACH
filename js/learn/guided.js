@@ -12,6 +12,7 @@ import { makeHint, narrateMove, quickComment } from '../coach.js';
 import { play as sfx, playForMove } from '../sound.js';
 import { trackPlan } from '../plan.js';
 import { classBadge } from '../components.js';
+import { playChip, isPhone, revealBelow } from '../playout.js';
 
 export const lessonDone = (track, id) => !!(store.get().lessons[track][id] || {}).done;
 function mark(track, id, patch) {
@@ -31,12 +32,13 @@ export function guidedLesson(root, ctx, track, lesson, back) {
     canSelect: (sq) => !locked && chess.get(sq) && chess.get(sq).color === chess.turn() && chess.turn() === side,
     legalTargets: (sq) => legalTargetsFor(chess, sq), onMove: (m) => userMove(m) });
   const say = h('div'); const stat = h('div.small.muted'); const ctrl = h('div.row');
-  const bubble = (t, kind = '') => { if (!t) return; say.prepend(typeof t === 'string' ? h('div.say', { class: kind }, t) : h('div.say', { class: kind }, t)); while (say.children.length > 5) say.lastChild.remove(); };
+  const bubble = (t, kind = '') => { if (!t) return; const b = h('div.say', { class: kind }, t); say.prepend(b); while (say.children.length > 5) say.lastChild.remove(); revealBelow(b); };
   const sel = h('div.seg', [['watch', 'Watch'], ['practice', 'Practice']].map(([k, l]) => h('button', { class: k === mode ? 'active' : '', onclick: () => setMode(k) }, l)));
   const intro = h('div.card', h('div.row.nowrapr', h('div.course-icon', lesson.icon), h('div.grow', h('h3', { style: { margin: 0 } }, lesson.name), h('div.small.muted', lesson.summary))),
-    h('div.coach-sec', h('h4', isEnd ? 'Key ideas' : 'The plan'), h('ul', (lesson.ideas || lesson.plan).map((x) => h('li', x)))));
-  root.replaceChildren(h('div.row.between', h('button.back', { onclick: () => { alive = false; back(); } }, icon('left', 16), isEnd ? 'Endgames' : 'Middlegames'), sel),
-    h('div.game-layout', h('div.board-col', h('div.board-box', board.el), stat), h('div.side-col', intro, h('div.card', say), ctrl)));
+    h('details.coach-more.ideas', { open: !isPhone() }, h('summary', isEnd ? 'Key ideas' : 'The plan'), h('ul', (lesson.ideas || lesson.plan).map((x) => h('li', x)))));
+  document.body.classList.add('in-learn');
+  root.replaceChildren(h('div.row.between.learn-top', h('button.back', { onclick: () => { alive = false; back(); } }, icon('left', 16), isEnd ? 'Endgames' : 'Middlegames'), sel),
+    h('div.game-layout.learn-layout', h('div.board-col', h('div.board-box', board.el), stat), h('div.side-col', ...(isPhone() ? [h('div.card', say), intro] : [intro, h('div.card', say)]), h('div.learn-actions', ctrl))));
 
   const show = (mv, anim = true) => board.setPosition(chess.fen(), { lastMove: mv ? { from: mv.from, to: mv.to } : null, animate: anim && mv ? [{ from: mv.from, to: mv.to }] : false, check: checkSquare(chess) });
   const goalText = () => isEnd ? (lesson.goal === 'win' ? 'Goal: win this position.' : `Goal: hold the draw for ${lesson.holdMoves} moves.`) : `Play ${lesson.moves} accurate moves following the plan.`;
@@ -137,7 +139,8 @@ export function guidedLesson(root, ctx, track, lesson, back) {
     } catch (er) { /* ignore */ }
     accSum += moveAccuracy(loss);
     const best = bestUci && bestUci !== uciOf(mv) ? new Chess(fenBefore).move({ from: bestUci.slice(0, 2), to: bestUci.slice(2, 4), promotion: bestUci[4] }).san : null;
-    const talk = h('div', h('div.row.tight', classBadge(cls), h('b', mv.san)), h('div.small', cls === 'best' || cls === 'excellent' ? (quickComment(fenBefore, uciOf(mv)) || 'Exactly the right idea.') : cls === 'good' ? 'Fine, but there was something sharper.' : 'That lets the position slip.'), best && loss > 2 ? h('div.small.muted', `The engine preferred ${best}.`) : null);
+    const talk = h('div', h('div.row.tight', classBadge(cls), h('b', mv.san)), h('div.small', cls === 'best' || cls === 'excellent' ? (quickComment(fenBefore, uciOf(mv)) || 'Exactly the right idea.') : cls === 'good' ? 'Fine, but there was something sharper.' : 'That lets the position slip.'), best && loss > 2 ? h('div.small.muted', `The engine preferred ${best}.`) : null,
+      best && bestUci && loss > 5 ? h('div.row.tight.mt-s', playChip(`Try ${best} instead`, () => tryInstead(fenBefore, bestUci, moveAccuracy(loss)), 'undo')) : null);
     bubble(talk, loss <= 5 ? 'good' : 'bad');
     sfx(loss <= 5 ? 'good' : 'bad');
     if (loss > 12 && best && bestUci) board.setArrows([{ from: bestUci.slice(0, 2), to: bestUci.slice(2, 4), color: '#5fc88f', opacity: 0.8 }]);
@@ -158,7 +161,29 @@ export function guidedLesson(root, ctx, track, lesson, back) {
     const hh = makeHint(chess.fen(), bestKnown.uci, Math.min(3, hintLevel));
     board.setHint([hh.from, hintLevel >= 3 ? hh.to : null].filter(Boolean));
     if (hintLevel >= 3) board.setArrows([{ from: hh.from, to: hh.to, color: '#62b8ff', opacity: 0.85 }]);
-    bubble(hintLevel === 1 ? lesson.hint || 'Look for the move that improves your position the most.' : hh.text);
+    let chip = null;
+    if (hintLevel >= 3) { try { const m = new Chess(chess.fen()).move({ from: hh.from, to: hh.to, promotion: bestKnown.uci[4] }); chip = h('div.row.tight.mt-s', playChip(`Play ${m.san}`, () => playHint(bestKnown.uci, chess.fen()))); } catch (e) { /* ignore */ } }
+    bubble(hintLevel === 1 ? lesson.hint || 'Look for the move that improves your position the most.' : chip ? h('div', hh.text, chip) : hh.text);
+  }
+  /** Play the hinted move for the learner (counts as a hint, so the lesson is not "clean"). */
+  function playHint(uci, fen) {
+    if (locked || over || chess.turn() !== side || chess.fen() !== fen) { toast('That suggestion was for an earlier position'); return; }
+    board.setArrows([]); board.setHint([]);
+    userMove({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] });
+  }
+  /** Rewind to the position before the learner's last move and play the engine's preferred move instead. */
+  function tryInstead(fen, uci, accGain) {
+    if (over || !alive) return;
+    token++;
+    let guard = 0;
+    while (chess.fen() !== fen && chess.history().length && guard++ < 8) { const u = chess.undo(); if (u && u.color === side) learnerMoves = Math.max(0, learnerMoves - 1); }
+    if (chess.fen() !== fen) return;
+    accSum = Math.max(0, accSum - (accGain || 0)); hintsUsed++;
+    board.clearOverlays(); show(null, false);
+    bestKnown = { uci, white: null, pv: [uci] };
+    locked = false; board.setInteractive(true);
+    bubble('Rewound — here is the engine\'s idea.');
+    userMove({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] });
   }
 
   function checkOver(afterEval) {
@@ -196,5 +221,5 @@ export function guidedLesson(root, ctx, track, lesson, back) {
   }
 
   reset(); watch();
-  return () => { alive = false; token++; board.destroy(); };
+  return () => { alive = false; token++; document.body.classList.remove('in-learn'); board.destroy(); };
 }

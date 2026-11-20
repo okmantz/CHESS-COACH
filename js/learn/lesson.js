@@ -20,6 +20,7 @@ import { moveFeatures } from '../themes.js';
 import { describeMove } from '../coach.js';
 import { moveInsight, narrateInsight } from '../insight.js';
 import { trackPlan } from '../plan.js';
+import { playChip, revealBelow, isPhone } from '../playout.js';
 
 const COLORS = { g: '#5fc88f', r: '#ef6b6b', b: '#62b8ff', y: '#f2b84b' };
 const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
@@ -128,10 +129,12 @@ export function lessonPlayer(root, ctx, { track, lesson, back, backLabel = 'Lear
   const dots = h('div.step-dots');
 
   const intro = h('div.card.lesson-head', h('div.row.nowrapr', h('div.course-icon', lesson.icon || '♞'), h('div.grow', h('h2', { style: { margin: 0 } }, lesson.name), h('div.small.muted', lesson.summary || '')), stepTag), h('div', { style: { height: '10px' } }), bar);
+  // phones: the board stays pinned at the top while you read; Back / Continue live in a bar that floats above the tab bar
+  document.body.classList.add('in-learn');
   root.replaceChildren(
-    h('div.row.between', h('button.back', { onclick: () => { alive = false; back(); } }, icon('left', 16), backLabel)),
-    h('div.game-layout', h('div.board-col', h('div.board-box', board.el), dots),
-      h('div.side-col', intro, h('div.card.lesson-card', titleEl, coachBox, taskBox, feedback, tools, h('div.row.mt', btnBack, btnNext)))));
+    h('div.row.between.learn-top', h('button.back', { onclick: () => { alive = false; back(); } }, icon('left', 16), backLabel)),
+    h('div.game-layout.learn-layout', h('div.board-col', h('div.board-box', board.el), dots),
+      h('div.side-col', intro, h('div.card.lesson-card', titleEl, coachBox, taskBox, feedback, tools), h('div.learn-actions', btnBack, btnNext))));
 
   function updateChrome() {
     stepTag.textContent = `${Math.min(idx + 1, steps.length)} / ${steps.length}`;
@@ -143,7 +146,7 @@ export function lessonPlayer(root, ctx, { track, lesson, back, backLabel = 'Lear
     btnNext.disabled = !(solved.has(idx) || steps[idx].t === 'say' || steps[idx].t === 'sandbox');
   }
 
-  function say(text, kind = '') { feedback.replaceChildren(h('div.say', { class: kind }, ...(typeof text === 'string' ? rich(text) : [text]))); }
+  function say(text, kind = '') { feedback.replaceChildren(h('div.say', { class: kind }, ...(typeof text === 'string' ? rich(text) : [text]))); revealBelow(feedback); }
   const setBoard = (fen, o = {}) => { board.setPosition(fen, { lastMove: o.lastMove || null, animate: o.animate || false, check: checkSquare(chess) }); };
   const orient = (s) => { if (s && s !== board.orientation) board.flip(s); };
 
@@ -176,7 +179,8 @@ export function lessonPlayer(root, ctx, { track, lesson, back, backLabel = 'Lear
     else if (st.t === 'quiz') runQuiz(st);
     else if (st.t === 'sandbox') runSandbox(st);
     updateChrome();
-    if (idx > saved.step) mark(track, lesson.id, () => ({ step: idx }));
+    if (isPhone()) window.scrollTo({ top: 0 });
+    if (idx > (saved.step || 0)) { mark(track, lesson.id, () => ({ step: idx })); saved.step = idx; }
   }
 
   function complete(extra) {
@@ -281,6 +285,13 @@ export function lessonPlayer(root, ctx, { track, lesson, back, backLabel = 'Lear
     if (wrongCount >= 4) showAnswer();
     return false;
   }
+  /** Play a suggested move for the learner (used by the "Play Nf3" button after Show me). */
+  function playSuggested(mv) {
+    const st = steps[idx];
+    if (!st || st.t !== 'move' || solved.has(idx)) return;
+    assisted = true; board.setArrows([]);
+    onUserMove({ from: mv.from, to: mv.to, promotion: mv.promotion });
+  }
   function hintNow() {
     const st = steps[idx];
     if (st.t === 'quiz') return;
@@ -305,7 +316,7 @@ export function lessonPlayer(root, ctx, { track, lesson, back, backLabel = 'Lear
         const t = new Chess(chess.fen());
         const mv = t.move(/^[a-h][1-8][a-h][1-8]/.test(want) ? { from: want.slice(0, 2), to: want.slice(2, 4), promotion: want[4] } : want);
         board.setArrows([{ from: mv.from, to: mv.to, color: COLORS.g, opacity: 0.95 }]);
-        say(`The move is **${mv.san}**. Play it on the board to continue.`);
+        say(h('div', h('p', 'The move is ', h('b', mv.san), '. Play it on the board, or tap it to play it for you.'), h('div.row.tight', playChip(`Play ${mv.san}`, () => playSuggested(mv)))));
       } catch (e) { /* ignore */ }
     } else if (st.t === 'squares' || st.t === 'tap') {
       const ans = answerSquares(st);
@@ -415,6 +426,10 @@ export function lessonPlayer(root, ctx, { track, lesson, back, backLabel = 'Lear
     steps.forEach((_, i) => solved.add(i)); updateChrome();
   }
 
-  go(Math.min(saved.step && saved.step < steps.length && !saved.done ? 0 : 0, steps.length - 1));
-  return () => { alive = false; clearTimers(); board.destroy(); };
+  // pick up where the learner left off (a finished lesson always starts again from the top)
+  const resumeAt = !saved.done && saved.step > 0 ? Math.min(saved.step, steps.length - 1) : 0;
+  for (let i = 0; i < resumeAt; i++) solved.add(i);
+  go(resumeAt);
+  if (resumeAt > 0) toast(`Picked up at step ${resumeAt + 1} — tap the first dot to start over`, '', 3200);
+  return () => { alive = false; clearTimers(); document.body.classList.remove('in-learn'); board.destroy(); };
 }

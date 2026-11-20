@@ -4,6 +4,7 @@ import { CLASSES, fmtEval, winPct, expandEval } from './analysis.js';
 import { capturedFromFen } from './chessutil.js';
 import { TAGS, THEME_LABELS } from './coach.js';
 import { navigate } from './app.js';
+import { lineChips, isPhone } from './playout.js';
 
 export function pieceImg(code, cls = '') { return h('div.piece', { class: `p-${code} ${cls}` }); }
 
@@ -91,8 +92,8 @@ export function evalChart(review, { current, onSelect } = {}) {
   return svg;
 }
 
-/** Coach card for one explained move. handlers: {onShowBest,onRetry,onTask} */
-export function coachCard(m, { onShowBest, onRetry, onTask } = {}) {
+/** Coach card for one explained move. handlers: {onShowBest,onRetry,onTask,onPlayLine(fen, pv, i)} */
+export function coachCard(m, { onShowBest, onRetry, onTask, onPlayLine } = {}) {
   const c = m.coach;
   const wrap = h('div.card.coach-box');
   const head = h('div.coach-head', h('div.coach-avatar', icon('sparkle', 20)), h('div.grow', h('div.row.tight', h('b', c ? c.title : `${m.moveNo}${m.color === 'w' ? '.' : '...'} ${m.san}`), classBadge(m.cls)), c ? h('div.small.muted', c.evalText) : h('div.small.muted', `Eval ${fmtEval(m.evalAfter)}`)));
@@ -106,10 +107,17 @@ export function coachCard(m, { onShowBest, onRetry, onTask } = {}) {
   if (c.headline) wrap.append(h('div.coach-headline', { class: mistake ? m.cls : 'good' }, c.headline));
   wrap.append(h('div.coach-sec', h('h4', mistake ? 'What happened' : 'What the move does'), h('p', c.what)));
   if (mistake) {
-    if (c.why && c.why.length) wrap.append(h('div.coach-sec', h('h4', 'Why it matters'), h('p', c.why.join(' '))));
     if (c.idea) wrap.append(h('div.coach-sec', h('h4', 'The better idea'), h('p', c.idea)));
-    wrap.append(h('div.coach-sec', h('h4', 'What to consider next time'), h('ul', c.consider.map((x) => h('li', x)))));
-    if (c.principle) wrap.append(h('div.principle', icon('bulb', 16), h('span', c.principle)));
+    // the engine's suggestion: every move is a button that plays the line out on the board
+    if (onPlayLine && m.best && m.best !== m.uci && m.pv && m.pv.length) {
+      wrap.append(h('div.coach-sec.sug-sec', h('h4', 'Engine suggests — tap a move to play it out'), lineChips(m.fenBefore, m.pv, { n: 6, onPick: (i) => onPlayLine(m.fenBefore, m.pv, i) })));
+    }
+    // the detail is open on desktop and folded away on phones, where the card shares the screen with the board
+    const more = h('details.coach-more', { open: !isPhone() }, h('summary', 'Why it matters & what to consider'),
+      c.why && c.why.length ? h('div.coach-sec', h('h4', 'Why it matters'), h('p', c.why.join(' '))) : null,
+      h('div.coach-sec', h('h4', 'What to consider next time'), h('ul', c.consider.map((x) => h('li', x)))),
+      c.principle ? h('div.principle', icon('bulb', 16), h('span', c.principle)) : null);
+    wrap.append(more);
     if (c.recommendation) {
       wrap.append(h('div.rec-card', h('div.row.tight', icon('target', 16), h('b', 'Training recommendation: '), c.recommendation.label),
         h('div', c.recommendation.tasks.slice(0, 3).map((t) => h('button.btn.small', { onclick: () => onTask ? onTask(t) : runTask(t) }, t.label)))));

@@ -81,7 +81,7 @@ async function route() {
   let page = 'home', params = [];
   for (const [re, name] of ROUTES) { const m = re.exec(path); if (m) { page = name; params = m.slice(1); break; } }
   if (cleanup) { try { cleanup(); } catch (e) { console.warn(e); } cleanup = null; }
-  document.body.classList.remove('in-game', 'in-review');
+  document.body.classList.remove('in-game', 'in-review', 'in-learn');
   stopEngine();
   const view = $('#view');
   view.replaceChildren(h('div.page', h('div.row', { style: { justifyContent: 'center', padding: '60px 0' } }, h('div.spin'))));

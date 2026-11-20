@@ -11,6 +11,9 @@ import { play as sfx, playForMove } from '../sound.js';
 import { trackPlan } from '../plan.js';
 import { tabs } from '../ui.js';
 import { progress } from '../ui.js';
+import { playChip, revealBelow } from '../playout.js';
+import { moveStrip } from '../gameui.js';
+import { sansText } from '../pvutil.js';
 
 export const lineStats = (courseId, li) => (store.get().lessons.openings[courseId] || { lines: {} }).lines[li] || { n: 0, ok: 0 };
 export function courseProgress(course) {
@@ -39,7 +42,7 @@ export function openingCourse(root, ctx, course, back) {
       h('div.row.nowrapr.mb', h('div.course-icon', course.icon), h('div.grow', h('h2', { style: { margin: 0 } }, course.name), h('div.small.muted', course.tagline)), h('span.tag', course.side === 'w' ? 'As White' : 'As Black')),
       h('div.card.flat.mb', h('div.row.between', h('b', 'Key ideas'), h('span.xs.muted', `${Math.round(p * 100)}% learned`)), h('ul.ex-list.small', { style: { margin: '6px 0 0', paddingLeft: '18px' } }, course.ideas.map((i) => h('li', i))), h('div.mt', progress(p, { height: 6 }))));
     body.replaceChildren(course.deep ? deepGuide() : null, h('div.grid.g2',
-      ...course.lines.map((l, i) => h('button.card.click', { onclick: () => { st.li = i; start('watch'); } }, h('div.row.between', h('b', l.name), mastery(i)), h('div.xs.muted.mt', `${parseLine(l.moves).length} moves · ${lineStats(course.id, i).n} attempts`), h('div.row.mt.tight', h('span.chip', { onclick: (e) => { e.stopPropagation(); st.li = i; start('watch'); } }, 'Watch'), h('span.chip', { onclick: (e) => { e.stopPropagation(); st.li = i; start('practice'); } }, 'Practice'))))),
+      ...course.lines.map((l, i) => h('button.card.click', { onclick: () => { st.li = i; start('watch'); } }, h('div.row.between', h('b', l.name), mastery(i)), h('div.opening-moves', sansText(parseLine(l.moves).map((x) => x.san), 8)), h('div.xs.muted.mt-s', `${parseLine(l.moves).length} moves · ${lineStats(course.id, i).n} attempts`), h('div.row.mt.tight', h('span.chip', { onclick: (e) => { e.stopPropagation(); st.li = i; start('watch'); } }, 'Watch'), h('span.chip', { onclick: (e) => { e.stopPropagation(); st.li = i; start('practice'); } }, 'Practice'))))),
       h('div.row.mt', h('button.btn.primary', { onclick: () => start('drill') }, icon('zap', 16), 'Drill every variation (no hints)'), h('button.btn', { onclick: () => { st.li = 0; start('practice', { choose: true }); } }, icon('sliders', 16), 'Explore variations')));
   }
 
@@ -53,7 +56,7 @@ export function openingCourse(root, ctx, course, back) {
     teardown();
     st.mode = mode;
     const t = player(mode, opts);
-    teardown = t;
+    teardown = () => { t(); document.body.classList.remove('in-learn'); };
   }
 
   /* the board + coach for one session */
@@ -76,10 +79,12 @@ export function openingCourse(root, ctx, course, back) {
     const stat = h('div.small.muted');
     const ctrl = h('div.row');
     const sel = h('div.seg', [['watch', 'Watch'], ['practice', 'Practice'], ['drill', 'Drill']].map(([k, l]) => h('button', { class: k === mode ? 'active' : '', onclick: () => start(k) }, l)));
-    root.replaceChildren(h('div.row.between', h('button.back', { onclick: () => { alive = false; draw(); root.replaceChildren(head, body); } }, icon('left', 16), course.name), sel),
-      h('div.game-layout', h('div.board-col', h('div.board-box', board.el), stat),
-        h('div.side-col', h('div.card', title, say, choices), ctrl)));
-    const bubble = (txt, kind = '') => { if (txt) say.prepend(h('div.say', { class: kind }, txt)); while (say.children.length > 4) say.lastChild.remove(); };
+    const boardCol = h('div.board-col', h('div.board-box', board.el), stat);
+    document.body.classList.add('in-learn');
+    root.replaceChildren(h('div.row.between.learn-top', h('button.back', { onclick: () => { alive = false; draw(); root.replaceChildren(head, body); } }, icon('left', 16), course.name), sel),
+      h('div.game-layout.learn-layout', boardCol,
+        h('div.side-col', h('div.card', title, say, choices), h('div.learn-actions', ctrl))));
+    const bubble = (txt, kind = '') => { if (!txt) return; const b = h('div.say', { class: kind }, txt); say.prepend(b); while (say.children.length > 4) say.lastChild.remove(); revealBelow(b); };
     const show = (mv, anim = true) => board.setPosition(chess.fen(), { lastMove: mv ? { from: mv.from, to: mv.to } : null, animate: anim && mv ? [{ from: mv.from, to: mv.to }] : false, check: checkSquare(chess) });
     const plyNo = () => chess.history().length;
     const playSan = (san) => { const m = chess.move(san); playForMove(m, chess.inCheck()); show(m); return m; };
@@ -90,7 +95,10 @@ export function openingCourse(root, ctx, course, back) {
       let i = 0, timer = null, auto = false;
       const prev = h('button.btn', { onclick: () => step(-1) }, icon('left', 18)), next = h('button.btn.primary.grow', { onclick: () => step(1) }, 'Next move', icon('right', 18));
       const autoBtn = h('button.btn', { onclick: () => toggleAuto() }, icon('play', 16), 'Auto');
-      const practiceBtn = h('button.btn', { onclick: () => start('practice') }, 'Now you try it');
+      // every move of the line is a button: tap one to jump straight to it
+      const strip = moveStrip({ nav: false, onSelect: (k) => { stopAuto(); go(k + 1); const m = lineMoves[k]; bubble(`${moveLabel({ ply: k + 1, san: m.san })}${m.note ? ' — ' + m.note : ''}`, isLearnerPly(course, k + 1) ? 'good' : ''); } });
+      boardCol.append(strip.el);
+      const practiceBtn = h('button.btn', { onclick: () => start('practice') }, 'Your turn');
       ctrl.replaceChildren(prev, next, autoBtn, practiceBtn);
       const go = (n) => {
         chess.reset(); say.replaceChildren(); i = 0;
@@ -102,6 +110,7 @@ export function openingCourse(root, ctx, course, back) {
         const m = lineMoves[i - 1];
         stat.textContent = i === 0 ? 'Press Next to start' : `Move ${Math.ceil(i / 2)} of ${Math.ceil(lineMoves.length / 2)}`;
         prev.disabled = i === 0; next.disabled = i >= lineMoves.length;
+        strip.setMoves(lineMoves.map((x) => x.san), i - 1);
       }
       function step(d) {
         if (d < 0) { go(Math.max(0, i - 1)); if (i > 0 && lineMoves[i - 1].note) bubble(`${moveLabel({ ply: i, san: lineMoves[i - 1].san })}: ${lineMoves[i - 1].note}`); return; }
@@ -179,7 +188,7 @@ export function openingCourse(root, ctx, course, back) {
       locked = true; mistakes++; board.shake(); sfx('bad');
       stat.textContent = `Mistakes: ${mistakes}`;
       const wantUci = uciOf(new Chess(chess.fen()).move(want.san));
-      bubble(`${mv.san} is not the move of this line. The course plays ${want.san}.${want.note ? ' ' + want.note : ''}`, 'bad');
+      bubble(h('div', `${mv.san} is not the move of this line. The course plays `, h('b', want.san), `.${want.note ? ' ' + want.note : ''}`, h('div.row.tight.mt-s', playChip(`Play ${want.san}`, () => playSuggested(want.san)))), 'bad');
       board.setPosition(chess.fen(), { animate: false, check: checkSquare(chess) });
       engineVerdict(mv, wantUci, want.san);
       setTimeout(() => { locked = false; board.setArrows([]); }, 400);
@@ -206,13 +215,22 @@ export function openingCourse(root, ctx, course, back) {
       board.setHint([hh.from, hintLevel >= 3 ? hh.to : null].filter(Boolean));
       if (hintLevel >= 3) board.setArrows([{ from: hh.from, to: hh.to, color: '#62b8ff', opacity: 0.85 }]);
       mistakes += hintLevel >= 3 ? 1 : 0;
-      bubble(hintLevel === 1 ? `Think about the plan: ${course.ideas[Math.min(course.ideas.length - 1, Math.floor(node.ply / 4))]}` : hh.text);
+      bubble(hintLevel === 1 ? `Think about the plan: ${course.ideas[Math.min(course.ideas.length - 1, Math.floor(node.ply / 4))]}` : hintLevel >= 3 ? h('div', hh.text, h('div.row.tight.mt-s', playChip(`Play ${want.san}`, () => playSuggested(want.san)))) : hh.text);
     }
     function revealMove() {
       if (locked || finished || !node.children.length) return;
       const want = node.children[0]; const uci = uciOf(new Chess(chess.fen()).move(want.san));
       mistakes++; board.setArrows([{ from: uci.slice(0, 2), to: uci.slice(2, 4), color: '#5fc88f', opacity: 0.9 }]);
-      bubble(`The move is ${want.san}.${want.note ? ' ' + want.note : ''}`);
+      bubble(h('div', `The move is `, h('b', want.san), `.${want.note ? ' ' + want.note : ''}`, h('div.row.tight.mt-s', playChip(`Play ${want.san}`, () => playSuggested(want.san)))));
+    }
+    /** Play a suggested move for the learner (only while it is still the expected move of the position they are looking at). */
+    function playSuggested(san) {
+      if (locked || finished) return;
+      const want = node.children[0];
+      if (!want || want.san !== san) { toast('That suggestion was for an earlier position'); return; }
+      let m; try { m = new Chess(chess.fen()).move(san); } catch (e) { return; }
+      board.setArrows([]); board.setHint([]);
+      userMove({ from: m.from, to: m.to, promotion: m.promotion });
     }
     function complete() {
       finished = true; locked = true; board.setInteractive(false);

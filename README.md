@@ -8,6 +8,7 @@ Stockfish does the analysis; a rule-based coach explains *why* a move matters an
 - **Play** the computer at 10 levels (≈400 → full Stockfish), pick White/Black/Random, time controls from unlimited to bullet, takebacks, 3-step hints, draw/resign, resume unfinished games, every game saved with all its moves.
 - **Rating** starts at 600 (Beginner) and moves quickly then settles (K=64→16, provisional for 10 games). Hinted/takeback games are unrated.
 - **Analyze** any PGN, move list, FEN or saved game: move classification (Brilliant, Great, Best, Excellent, Good, Book, Inaccuracy, Mistake, Blunder). Every move is compared with the engine's best move **inside the same search**; serious verdicts are re-checked at a higher depth, and decided positions are judged by centipawn loss as well as win probability so blunders by the lost or the winning side are never labelled "best". Plus accuracy, eval graph, engine lines, free variation exploring, and a **coach note on every mistake**: what happened, what you should have considered, and a training recommendation.
+- **Tap-to-play suggestions** — every suggested move is a button. In **Analyze**, the engine's top three lines for each position and the coach's "engine suggests" line can be played out on the board move by move (step through them, keep playing your own moves, and the engine evaluates each one). In lessons, openings and endgames, "Show me", hints and corrections come with a **Play Nf3** button that plays the move for you, and in Watch mode every move of an opening line is tappable.
 - **Coach** — learns from your games: tags each mistake (hung piece, missed fork, king safety, …), tracks recurring ones with recency weighting, builds a daily personalised plan, and sends mistakes to a spaced-repetition trainer.
 - **Learn** — an interactive **How to Play Chess** course (16 lessons: pieces, rules, the three golden rules — control the centre, develop your pieces, connect your rooks — and a blunder-check habit); a **Tactics** course (forks, pins, skewers, discovered attacks, removing the defender, back-rank and classic mating patterns, sacrifices) mixing coach-built positions with puzzles; **27 opening courses** (White and Black) with a study guide per opening and a **Drill that visits every variation**; guided middlegame and endgame lessons where you play against Stockfish and the coach scores each move.
 - **Play a Game with Coach** — a Socratic game: a pre-move checklist (what did they threaten? what can I win? is my move safe?), a **blunder check** that stops a serious mistake before it is played and asks a question instead of giving the answer, a four-step hint ladder, and a report on your habits and what to practise next.
@@ -25,6 +26,8 @@ Ten opponents, each with a face, a personality and speech bubbles (`js/bot.js`, 
 Profile has 17 portrait avatars (`assets/avatars/*.webp`, replace with higher-resolution files of the same name any time), 12 emblems, photo upload, 16 board themes, 7 piece sets (`assets/pieces/<set>`, regenerate with `node scripts/gen-piece-sets.mjs`), highlight colours, move-hint style, board frame, theme (dark / black / light), text size, reduce motion and a bot chat toggle. All of it lives in `js/skins.js`.
 
 ## Learn
+
+On phones the Learn section has a section switcher, search across every lesson/opening/term, a "pick up where you left off" card, tiles with progress, filters on the openings list, a pinned board with a thumb-reach Back / Continue bar in every lesson, and Analyze keeps the board pinned with a one-line move banner (swipe the coach panel to step through the game). Lessons resume at the step you stopped on.
 
 Basics, Tactics, **Strategy** (the "why" behind moves, `js/data/strategy.js`), Openings, Middlegames, Endgames and a **Glossary** (`js/data/glossary.js`). `tests/ladder.test.mjs` fails if the road points to a lesson that does not exist.
 
@@ -60,6 +63,8 @@ js/coach.js  explanations, weakness profile, plan     js/insight.js  position/mo
 js/learn/lesson.js  interactive lesson player     js/data/basics.js, tactics.js  lesson content
 js/pages/coachplay.js  Play a Game with Coach
 js/bot.js    10 levels              js/rating.js  Elo
+js/pvutil.js (pure) + js/playout.js  tap-to-play suggested lines used by Analyze, lessons, openings, endgames
+css/mobile.css  phone layout, tap-to-play chips, Learn hub, sticky lesson/trainer layout
 js/data/     openings, endgames, middlegames, puzzles, eco
 engine/      Stockfish 19 lite WASM   vendor/ chess.js   assets/ pieces + icons
 scripts/gen-puzzles.mjs                         engine-verified puzzle generator

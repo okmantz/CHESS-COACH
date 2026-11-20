@@ -1,0 +1,144 @@
+/* Chess Coach — mobile & Learn/Analyze polish. Loaded after styles.css; everything here only adds to or refines it.
+   Sections: 1 base / touch · 2 tap-to-play suggested moves · 3 Analyze (review) · 4 Learn hub & lists · 5 lesson / trainer players */
+
+/* ============================================================ 1. base / touch */
+button, a, .mv-chip, .mchip, .card.click { touch-action: manipulation; }
+.mt-s { margin-top: 6px; }
+.clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.clamp3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* a search field that matches the rest of the app (the glossary used the unstyled browser default) */
+.search-box { display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; color: var(--muted); }
+.search-box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); color: var(--accent); }
+.search-box input { flex: 1; min-width: 0; border: 0; background: transparent; box-shadow: none; outline: none; color: var(--text); font: inherit; padding: 12px 0; -webkit-appearance: none; appearance: none; }
+.search-box input::-webkit-search-cancel-button { -webkit-appearance: none; }
+
+@media (max-width: 959px) {
+  /* 16px stops iOS Safari from zooming the page when a field is focused */
+  input[type=text], input[type=number], input[type=search], textarea, select, .search-box input { font-size: 16px; }
+}
+@media (pointer: coarse) {
+  .btn { min-height: 44px; } .btn.small { min-height: 40px; }
+  .seg button { min-height: 40px; } .tab { min-height: 44px; }
+  .mchip { padding: 7px 11px; } .icon-btn.sm { min-width: 38px; min-height: 38px; }
+}
+
+/* ============================================================ 2. tap-to-play suggested moves */
+.pv-line { display: flex; flex-wrap: wrap; gap: 6px; }
+.mv-chip { min-height: 36px; padding: 6px 11px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font: 650 .88rem/1.1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: -.01em; cursor: pointer; transition: background .12s, border-color .12s, transform .08s; }
+.mv-chip.b { background: var(--surface-3); }
+.mv-chip:hover { border-color: var(--accent); }
+.mv-chip:active { transform: scale(.95); }
+.mv-chip.active { background: var(--accent); border-color: transparent; color: var(--accent-ink); }
+.mv-chip:focus-visible, .play-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sug-card { padding: 12px; }
+.sug-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.sug-list { display: flex; flex-direction: column; gap: 8px; }
+.sug-row { display: flex; align-items: flex-start; gap: 8px; }
+.sug-eval { flex: none; min-width: 52px; min-height: 36px; display: grid; place-items: center; padding: 0 6px; border-radius: 10px; background: var(--surface-3); font-weight: 800; font-size: .82rem; font-variant-numeric: tabular-nums; }
+.sug-sec .pv-line { margin-top: 2px; }
+.play-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 8px 15px; border: 0; border-radius: 99px; background: var(--accent); color: var(--accent-ink); font: inherit; font-weight: 750; font-size: .9rem; cursor: pointer; box-shadow: 0 3px 12px color-mix(in srgb, var(--accent) 35%, transparent); transition: transform .08s, filter .12s; }
+.play-chip:hover { filter: brightness(1.08); } .play-chip:active { transform: scale(.96); }
+.line-stepper { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+.line-stepper .btn { min-width: 40px; padding-inline: 8px; }
+.var-msg { font-weight: 650; margin: 0 0 .6em; }
+
+/* ============================================================ 3. Analyze (review) */
+.coach-more > summary { display: flex; align-items: center; gap: 6px; min-height: 40px; margin-top: 8px; cursor: pointer; list-style: none; font-weight: 700; font-size: .9rem; color: var(--accent); }
+.coach-more > summary::-webkit-details-marker { display: none; }
+.coach-more > summary::before { content: "▸"; display: inline-block; width: 1em; transition: transform .15s; }
+.coach-more[open] > summary::before { transform: rotate(90deg); }
+.coach-more.ideas > summary { margin-top: 10px; }
+.coach-more.ideas ul { margin: 4px 0 0; padding-left: 20px; } .coach-more.ideas li { margin: 3px 0; font-size: .92rem; }
+.chart { touch-action: pan-y; }
+
+.move-banner { display: none; }
+@media (max-width: 959px) {
+  .move-banner { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 4px 8px; border-radius: 10px; background: var(--surface-2); font-size: .92rem; }
+  .move-banner .mb-dot { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; flex: none; color: #fff; font-size: 11px; font-weight: 800; }
+  .move-banner .mb-eval { font-weight: 800; font-variant-numeric: tabular-nums; padding: 2px 8px; border-radius: 7px; background: var(--surface-3); }
+  .rv-info { display: none; }
+  .review-layout .eval-bar { width: 14px; border-radius: 5px; } .review-layout .eval-label { display: none; }
+  /* tabs become a segmented control: bigger targets, clearer state */
+  .review-layout .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 3px; border: 0; border-radius: 12px; background: var(--surface-2); }
+  .review-layout .tab { margin: 0; padding: 9px 6px; text-align: center; border: 0; border-radius: 9px; }
+  .review-layout .tab.active { background: var(--accent); color: var(--accent-ink); }
+  .review-layout .coach-box { padding: 14px; }
+  .review-layout .coach-head { margin-bottom: 6px; } .review-layout .coach-avatar { width: 34px; height: 34px; border-radius: 10px; }
+  .review-layout .key-bar .btn { min-width: 74px; }
+  .review-layout .acc-card { padding: 12px; }
+  .analysis-input .row .btn { flex: 1; }
+  .analysis-input .seg { display: flex; width: 100%; } .analysis-input .seg button { flex: 1; padding-inline: 6px; }
+}
+
+/* ============================================================ 4. Learn hub & lists */
+.learn-nav { display: flex; gap: 8px; margin: 0 -14px 12px; padding: 2px 14px 6px; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+.learn-nav::-webkit-scrollbar { display: none; }
+@media (max-width: 480px) { .learn-nav { margin-inline: -10px; padding-inline: 10px; } }
+@media (min-width: 960px) { .learn-nav { margin-inline: 0; padding-inline: 0; flex-wrap: wrap; overflow: visible; } }
+.learn-chip { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 7px 14px; border-radius: 99px; border: 1px solid var(--border-soft); background: var(--surface-2); color: var(--muted); font: inherit; font-weight: 650; font-size: .88rem; white-space: nowrap; cursor: pointer; scroll-snap-align: start; transition: background .12s, color .12s, border-color .12s; }
+.learn-chip:hover { color: var(--text); border-color: var(--border); }
+.learn-chip.active { background: var(--accent); border-color: transparent; color: var(--accent-ink); }
+.chip-row { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; } .chip-row::-webkit-scrollbar { display: none; }
+.seg-fill { display: flex; width: 100%; } .seg-fill button { flex: 1; }
+.filters { display: grid; gap: 10px; margin-bottom: 14px; }
+.learn-head .list-progress { flex: 1 0 100%; }
+
+.tile-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (min-width: 700px) { .tile-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; } }
+.tile { display: flex; flex-direction: column; gap: 4px; padding: 14px; min-height: 156px; }
+.tile-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.tile-pct { font-weight: 800; font-size: .85rem; color: var(--accent); font-variant-numeric: tabular-nums; }
+.tile-title { font-size: 1.02rem; }
+.tile-text { flex: 1; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.35; }
+.tile-bar { margin-top: 8px; }
+.tile-meta { margin-top: 2px; }
+.resume-card { margin-bottom: 12px; border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); background: linear-gradient(135deg, var(--accent-soft), transparent 80%), var(--surface); }
+@media (max-width: 480px) {
+  .hero-card { padding: 14px; } .hero-card .course-icon.big { width: 46px; height: 46px; font-size: 23px; }
+  .hero-card h2 { font-size: 1.08rem; } .hero-text { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .hero-btn { padding-inline: 12px; }
+}
+.opening-card { display: block; }
+.opening-moves { margin-top: 8px; padding: 6px 9px; border-radius: 8px; background: var(--surface-2); color: var(--muted); font: 600 .78rem/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card.click .opening-moves { text-align: left; }
+.lesson-row { min-height: 64px; }
+
+/* ============================================================ 5. lesson / opening / endgame players */
+.learn-actions { display: flex; align-items: stretch; gap: 8px; }
+.learn-actions > .row { flex: 1; min-width: 0; }
+.learn-actions .btn { min-height: 46px; }
+.learn-top { margin-bottom: 2px; }
+
+@media (max-width: 959px) {
+  /* the top bar goes away (there is a back button on the page) so the board can be as large as possible */
+  body.in-learn .topbar { display: none; }
+  .learn-page .learn-top { margin-top: 2px; }
+  .learn-layout { gap: 10px; }
+  /* the board stays pinned while you read and answer underneath it */
+  .learn-layout .board-col { position: sticky; top: 0; z-index: 8; gap: 4px; margin: 0 -14px; padding: calc(6px + var(--safe-t)) 14px 6px; background: color-mix(in srgb, var(--bg) 97%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border-soft); }
+  .learn-layout .board-box { width: min(100%, max(232px, 40dvh)); margin-inline: auto; }
+  .learn-layout .board { box-shadow: 0 4px 14px rgba(0, 0, 0, .3); }
+  .learn-layout .step-dots { margin-top: 2px; flex-wrap: nowrap; overflow-x: auto; justify-content: safe center; scrollbar-width: none; padding: 3px 2px; }
+  .learn-layout .step-dots::-webkit-scrollbar { display: none; } .learn-layout .step-dots i { flex: none; }
+  .learn-layout .move-strip { min-height: 38px; }
+  .learn-layout .lesson-card, .learn-layout .card { padding: 14px; }
+  .learn-layout .lesson-head { padding: 12px; } .learn-layout .lesson-head h2 { font-size: 1.05rem; }
+  .learn-layout .coach-text p { font-size: .95rem; }
+  /* Back / Continue (and Hint / Show move / Restart) float above the tab bar, always one thumb-tap away */
+  .learn-actions { position: sticky; bottom: calc(var(--nav-h) + var(--safe-b) + 8px); z-index: 9; padding: 8px; border: 1px solid var(--border); border-radius: 16px; background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(12px); box-shadow: var(--shadow); }
+  .learn-actions > .row { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 6px; } .learn-actions > .row::-webkit-scrollbar { display: none; }
+  .learn-actions > .row > * { flex: 1 0 auto; white-space: nowrap; }
+  .learn-actions .btn { padding-inline: 12px; }
+  .learn-layout .quiz-opt { min-height: 48px; }
+  .learn-layout .say { margin: 6px 0; }
+}
+@media (max-width: 959px) and (orientation: landscape) and (max-height: 560px) {
+  .learn-layout { grid-template-columns: min(calc(100dvh - 100px), 46vw) minmax(0, 1fr); align-items: start; }
+  .learn-layout .board-col { margin: 0; padding: 4px 0; border-bottom: 0; background: transparent; backdrop-filter: none; top: 4px; }
+  .learn-layout .board-box { width: 100%; }
+}
+@media (min-width: 960px) {
+  .learn-layout .board-col { position: sticky; top: 12px; align-self: start; }
+  .learn-actions { padding: 0; }
+}
