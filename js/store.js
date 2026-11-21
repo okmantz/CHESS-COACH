@@ -21,6 +21,7 @@ export function defaults() {
       board: 'classic', theme: 'dark', coords: true, sound: true, highlights: true, legalDots: true, autoQueen: false,
       animations: true, analysisDepth: 'standard', defaultTime: 'unlimited', confirmResign: true, showEvalBar: true,
       pieceSet: 'classic', highlight: 'gold', boardFrame: 'soft', indicator: 'dot', textSize: 'm', reduceMotion: false, botChat: true,
+      showArrows: true, coachVisuals: true,
     },
     rating: { value: START_RATING, games: 0, peak: START_RATING, history: [] },
     games: [],

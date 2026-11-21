@@ -9,8 +9,11 @@ import { playerBar, moveList, evalChart, coachCard, classBadge, emptyState } fro
 import { playForMove } from '../sound.js';
 import { trackPlan } from '../plan.js';
 import { isMobile } from '../gameui.js';
-import { lineChips, suggestList, lineStepper } from '../playout.js';
-import { parsePv, replayPv } from '../pvutil.js';
+import { parsePv, replayPv, normLines } from '../pvutil.js';
+import { suggestPanel } from '../suggest.js';
+import { whyCard, keepAnchor, nudgeIntoView } from '../whyui.js';
+import { whyMove, moveOverlay, engineArrows, reviewMarks, COL } from '../visual.js';
+import { liveBoard } from '../live.js';
 
 const NOTABLE = ['brilliant', 'great', 'inaccuracy', 'mistake', 'blunder', 'miss'];
 
@@ -56,6 +59,9 @@ export default async function analyzePage(view, ctx) {
     const library = s.games.slice(0, 6);
     const node = h('div.page',
       h('div.page-head', h('h1', 'Analyze')),
+      h('div.card.live-hero.mb', h('div.row.nowrapr', h('div.course-icon', '♟'),
+        h('div.grow', h('b', 'Analysis board'), h('div.small.muted', 'Play a game or set up any position — Stockfish analyses it live, draws its best moves as arrows and explains why each one works.')),
+        h('div.row.tight', h('a.btn.primary', { href: '#/analyze?live=1' }, icon('play', 16), 'Play'), h('a.btn', { href: '#/analyze?live=setup' }, icon('sliders', 16), 'Set up')))),
       h('div.grid.g2',
         h('div.card.analysis-input', h('div.card-title', icon('upload', 18), 'Import a game'), ta,
           h('div.row', h('button.btn', { onclick: async () => { const f = await pickFile('.pgn,.txt'); if (f) ta.value = await readFile(f); } }, icon('upload', 16), 'Open .pgn file'),
@@ -69,7 +75,10 @@ export default async function analyzePage(view, ctx) {
     show(node);
   }
 
-  if (ctx.query.game) {
+  if (ctx.query.live) {
+    const lb = liveBoard(view, ctx, { fen: ctx.query.fen || null, setup: ctx.query.live === 'setup', back: () => ctx.navigate('#/analyze') });
+    teardown = () => lb.destroy();
+  } else if (ctx.query.game) {
     const g = store.getGame(ctx.query.game);
     if (g) { loadGame(g); } else { toast('Game not found', 'bad'); inputScreen(); }
   } else inputScreen();
@@ -188,17 +197,59 @@ function reviewScreen(view, ctx, record, toInput, setTeardown) {
     const info = h('div.rv-info');
     const banner = h('div.move-banner', { 'aria-live': 'polite' });
     const coachBox = h('div');
-    const lineBox = h('div');
     const listBox = h('div');
     const chartBox = h('div');
     let chart = null;
     let mlist = null;
 
     const accBadge = (c) => review.summary[c].acc;
-    const showBest = h('button.btn.small', { onclick: () => toggleBest() }, icon('eye', 15), 'Best move');
 
     let booting = true;
     function mv(i) { return review.moves[i]; }
+
+    /* ------------------------------------------------------------------ what is drawn on the board */
+    let arrowsOn = settings.showArrows !== false;   // engine suggestions as arrows
+    let bestShown = false;                          // "Show best move" (position before the move, green/red arrows)
+    let moveVisual = null;                          // overlay for "what this move does" (replaces the engine arrows while on)
+    let whyOverlay = null;                          // overlay for the explained suggestion
+    let whyKey = null;
+
+    const sideOf = (fen) => (fen.split(' ')[1] === 'w' ? 'White' : 'Black');
+    const curFen = () => (variation ? variation.chess.fen() : fens[ply]);
+
+    /** The engine's lines for the position on the board: from the stored review, or live for a variation. */
+    function rootLines() {
+      const next = mv(ply) || null;
+      let lines = null;
+      if (next && next.top && next.top.length) lines = next.top;
+      else if (next && next.pv && next.pv.length) lines = [{ e: next.evalBefore, pv: next.pv }];
+      else if (ply > 0 && mv(ply - 1).replyPv && mv(ply - 1).replyPv.length) lines = [{ e: expandEval(review.evals[ply]), pv: mv(ply - 1).replyPv }];
+      if (!lines) return null;
+      return lines.map((l) => ({ ev: l.e && l.e.cp == null && l.e.mate == null ? expandEval(l.e) : l.e, pv: l.pv }));
+    }
+    function linesNow() {
+      if (!variation) return rootLines() || [];
+      const v = variation;
+      if (v.retry && !v.retry.done) return [];                   // never give the answer away while the player is still trying
+      if (v.lines && v.lines.length) return v.lines.map((l) => ({ ev: l.white, pv: l.pv }));
+      const b = v.base;
+      return b && b.ucis[b.idx + 1] ? [{ ev: null, pv: [b.ucis[b.idx + 1]] }] : [];   // until the engine answers, show where the line goes next
+    }
+
+    /** One place decides what is drawn: the explanation overlay, "what it does", or the engine's suggestion arrows. */
+    function paint() {
+      if (bestShown) return;
+      const m = !variation && ply > 0 ? mv(ply - 1) : null;
+      let arrows = [], marks = {};
+      const badges = m && NOTABLE.includes(m.cls) ? { [m.uci.slice(2, 4)]: { text: CLASSES[m.cls].sym || '', color: CLASSES[m.cls].color } } : {};
+      if (moveVisual) { arrows = moveVisual.arrows.slice(); marks = { ...moveVisual.marks }; }
+      else {
+        if (whyOverlay) { arrows = whyOverlay.arrows.slice(); marks = { ...whyOverlay.marks }; }
+        if (arrowsOn) arrows = arrows.concat(engineArrows(linesNow(), { max: whyOverlay ? 2 : 3 }));
+        if (m) marks = { ...reviewMarks(m), ...marks };
+      }
+      board.setOverlay({ arrows, marks, badges });
+    }
 
     /* ---- key moments: jump straight to the player's mistakes and blunders ---- */
     const keyBar = h('div.key-bar');
@@ -217,7 +268,7 @@ function reviewScreen(view, ctx, record, toInput, setTeardown) {
         h('div.grow.center.small', h('b', 'Key moments'), h('span.muted', ` ${done}/${ks.length}`)),
         h('button.btn.small', { disabled: !ks.some((k) => k > ply), onclick: () => jumpKey(1), 'aria-label': 'Next key moment' }, 'Next', icon('right', 14)));
     }
-    /** Phones: the board is pinned at the top, so make sure the coach's note is not hidden underneath it after a jump. */
+    /** Phones: the board is pinned at the top, so make sure the coach's note is not hidden underneath it after a jump to another move. */
     function revealCoach() {
       if (!isMobile()) return;
       const bc = root.querySelector('.board-col'); const tw = root.querySelector('.tabs-wrap');
@@ -227,18 +278,18 @@ function reviewScreen(view, ctx, record, toInput, setTeardown) {
     }
     function goTo(p, animate = true) {
       variation = null; liveToken++;
+      bestShown = false; moveVisual = null; whyOverlay = null; whyKey = null;
       p = Math.max(0, Math.min(n, p));
       const prev = ply; ply = p;
       const m = p > 0 ? mv(p - 1) : null;
       board.setPosition(fens[p], { lastMove: m ? { from: m.uci.slice(0, 2), to: m.uci.slice(2, 4) } : null, animate: animate && p === prev + 1 && m ? [{ from: m.uci.slice(0, 2), to: m.uci.slice(2, 4) }] : false, check: checkSquare(new Chess(fens[p])) });
       board.clearOverlays();
-      if (m && (NOTABLE.includes(m.cls))) board.setBadges({ [m.uci.slice(2, 4)]: { text: CLASSES[m.cls].sym || '', color: CLASSES[m.cls].color } });
-      if (m && m.cls === 'book') board.setBadges({});
       if (p > prev && m) playForMove({ san: m.san, captured: m.san.includes('x'), flags: '' }, m.san.includes('+'));
       const e = expandEval(review.evals[p]);
       evalBar.update(winPct(e), fmtEval(e, { noPlus: true }));
       botBar.setCaptured(fens[p]); topBar.setCaptured(fens[p]);
-      renderInfo(); renderCoach(); renderLine(); renderKeyBar();
+      sp.setWhy(null); sp.setActive(null);
+      renderInfo(); renderCoach(); renderKeyBar(); paint();
       if (!booting) revealCoach();
       if (mlist) { mlist.querySelectorAll('.mv').forEach((el) => el.classList.toggle('active', +el.dataset.idx === p - 1)); mlist.scrollToCurrent && mlist.scrollToCurrent(); }
       if (chart) chart.setCursor(p - 1);
@@ -248,7 +299,7 @@ function reviewScreen(view, ctx, record, toInput, setTeardown) {
     /** One-line summary pinned under the board on phones, so you always know which move and verdict you are looking at. */
     function renderBanner() {
       const m = ply > 0 ? mv(ply - 1) : null;
-      const e = expandEval(review.evals[ply]);
+      const e = variation && variation.evalNow ? variation.evalNow : expandEval(review.evals[ply]);
       if (variation) { banner.replaceChildren(h('span.mb-dot', { style: { background: 'var(--info)' } }, '↯'), h('b', 'Exploring'), h('span.grow'), h('span.mb-eval', fmtEval(e, { noPlus: true }))); return; }
       if (!m) { banner.replaceChildren(h('b', review.opening ? review.opening.name : 'Start position'), h('span.grow'), h('span.mb-eval', fmtEval(e, { noPlus: true }))); return; }
       const c = CLASSES[m.cls];
@@ -263,97 +314,163 @@ function reviewScreen(view, ctx, record, toInput, setTeardown) {
         review.opening ? h('span.tag.accent', review.opening.name) : null));
     }
 
+    const flash = (sqs) => board.flashSquares(sqs);
+
+    /** The note for the move on the board, or the slim "exploring" bar while a variation is open. */
     function renderCoach() {
-      coachBox.replaceChildren();
       renderBanner();
-      if (variation) {
-        const v = variation;
-        const card = h('div.card.coach-box', h('div.coach-head', h('div.coach-avatar', '🔬'), h('div.grow', h('b', 'Exploring a variation'), h('div.small.muted', 'Tap suggested moves or play your own — the engine checks every move.'))),
-          v.msg ? h('p.var-msg', v.msg) : (v.pending ? h('p.small.muted', 'Evaluating…') : null));
-        if (v.line) {
-          card.append(h('div.coach-sec', h('h4', 'Line'), lineChips(v.line.fen, v.line.ucis, { n: 12, active: v.line.idx, onPick: (i) => previewLine(v.line.fen, v.line.ucis, i) }),
-            lineStepper({ idx: v.line.idx, len: v.line.ucis.length, onStep: (i) => previewLine(v.line.fen, v.line.ucis, i) })));
+      keepAnchor(sp.el, () => {
+        coachBox.replaceChildren();
+        if (variation) { coachBox.append(exploreBar()); return; }
+        if (ply === 0) {
+          coachBox.append(h('div.card.coach-box', h('div.coach-head', h('div.coach-avatar', '🎓'), h('div.grow', h('b', 'Ready to review'), h('div.small.muted', review.opening ? review.opening.name : 'Step through the game with ← →'))),
+            h('p.small.muted', 'Step through the game with the arrows under the board (or swipe left / right here), or jump straight to your mistakes with Prev / Next above. Moves marked ?! ? ?? come with a coaching note. The arrows on the board show what the engine would play next — tap any suggested move to play it out and see exactly why it works, or play your own move on the board to explore a variation.')));
+          return;
         }
-        if (v.suggest) {
-          card.append(h('div.coach-sec', h('h4', 'Suggested moves from here'), suggestList(v.suggest.fen, v.suggest.lines, { onPick: (li, i) => previewLine(v.suggest.fen, v.suggest.lines[li].pv, i) })));
-        }
-        card.append(h('div.row.mt', h('button.btn.small.primary', { onclick: () => goTo(v.from) }, icon('repeat', 15), 'Back to the game'),
-          v.chess.history().length ? h('button.btn.small', { onclick: () => undoVariation() }, icon('undo', 15), 'Undo') : null));
-        coachBox.append(card);
-        return;
-      }
-      if (ply === 0) {
-        coachBox.append(h('div.card.coach-box', h('div.coach-head', h('div.coach-avatar', '🎓'), h('div.grow', h('b', 'Ready to review'), h('div.small.muted', review.opening ? review.opening.name : 'Step through the game with ← →'))),
-          h('p.small.muted', 'Step through the game with the arrows under the board (or swipe left / right here), or jump straight to your mistakes with Prev / Next above. Moves marked ?! ? ?? come with a coaching note. Tap any suggested move to play it out, or play your own move on the board to explore a variation.')));
-        return;
-      }
-      const m = mv(ply - 1);
-      coachBox.append(coachCard(m, { onShowBest: m.best ? () => toggleBest(true) : null, onRetry: () => retry(m), onPlayLine: (fen, pv, i) => previewLine(fen, pv, i) }));
+        const m = mv(ply - 1);
+        coachBox.append(coachCard(m, { onShowBest: m.best ? () => toggleBest(true) : null, onRetry: () => retry(m), onSquares: flash, onVisual: () => toggleMoveVisual(m), visualOn: !!moveVisual }));
+      });
+      syncPanel();
     }
 
-    /** The engine's top choices for the position on the board. Every move is a button that plays the line out. */
-    function renderLine() {
-      lineBox.replaceChildren();
-      if (variation) return;
-      const next = mv(ply) || null;
-      let lines = null;
-      if (next && next.top && next.top.length) lines = next.top;
-      else if (next && next.pv && next.pv.length) lines = [{ e: next.evalBefore, pv: next.pv }];
-      else if (ply > 0 && mv(ply - 1).replyPv && mv(ply - 1).replyPv.length) lines = [{ e: expandEval(review.evals[ply]), pv: mv(ply - 1).replyPv }];
-      if (!lines) return;
-      const fen = fens[ply];
-      lineBox.append(h('div.card.flat.sug-card', h('div.sug-head', h('b', 'Suggested moves'), h('span.xs.muted', 'tap a move to play it out')),
-        suggestList(fen, lines.map((l) => ({ e: l.e && l.e.cp == null && l.e.mate == null ? expandEval(l.e) : l.e, pv: l.pv })), { n: 6, onPick: (li, i) => previewLine(fen, lines[li].pv, i) })));
+    /** Slim card shown instead of the move note while a variation is open. */
+    function exploreBar() {
+      const v = variation;
+      const b = v.base;
+      const stepBtn = (ic, label, to, off) => h('button.btn.small', { type: 'button', 'aria-label': label, disabled: off, onclick: () => stepLine(to) }, icon(ic, 15));
+      return h('div.card.coach-box.explore-bar',
+        h('div.coach-head', h('div.coach-avatar', '🔬'), h('div.grow', h('b', 'Exploring a variation'), h('div.small.muted', 'The board shows a line that was not played in the game.'))),
+        v.msg ? h('p.var-msg', v.msg) : (v.pending ? h('p.small.muted', 'Evaluating…') : null),
+        b ? h('div.line-stepper', stepBtn('first', 'Start of the line', -1, b.idx < 0), stepBtn('left', 'Previous move in the line', b.idx - 1, b.idx < 0),
+          h('span.xs.muted.grow.center', b.idx < 0 ? 'Start of the line' : `Move ${b.idx + 1} of ${b.ucis.length}`),
+          stepBtn('right', 'Next move in the line', b.idx + 1, b.idx >= b.ucis.length - 1), stepBtn('last', 'End of the line', b.ucis.length - 1, b.idx >= b.ucis.length - 1)) : null,
+        h('div.row.mt', h('button.btn.small.primary', { onclick: () => goTo(v.from) }, icon('repeat', 15), 'Back to the game'),
+          v.chess.history().length ? h('button.btn.small', { onclick: () => undoVariation() }, icon('undo', 15), 'Undo') : null,
+          h('button.btn.small', { onclick: () => ctx.navigate('#/analyze?live=1&fen=' + encodeURIComponent(v.chess.fen())) }, icon('search', 15), 'Analysis board')));
+    }
+
+    /* ------------------------------------------------------------------ the suggestion panel */
+    const sp = suggestPanel({
+      title: 'Suggested moves', hint: 'tap a move to play it out — the arrows show the same moves', arrows: arrowsOn,
+      onArrows: (on) => { arrowsOn = on; store.update((s) => { s.settings.showArrows = on; }); paint(); },
+      onPick: ({ group, lineIndex, moveIndex, line }) => pickSuggestion(group, lineIndex, moveIndex, line),
+    });
+    const lineBox = sp.el;
+
+    function syncPanel() {
+      const groups = [];
+      if (!variation) {
+        const m = ply > 0 ? mv(ply - 1) : null;
+        if (m && m.best && m.best !== m.uci && m.pv && m.pv.length && ['inaccuracy', 'mistake', 'blunder'].includes(m.cls)) {
+          groups.push({ key: `better:${ply}`, title: `Better was ${m.bestSan || m.best}`, sub: `instead of ${m.san}`, fen: m.fenBefore, lines: [{ ev: m.evalBefore, pv: m.pv }], n: 8, dots: false });
+        }
+        const lines = rootLines();
+        if (lines) groups.push({ key: `here:${ply}`, title: 'The engine suggests', sub: `${sideOf(fens[ply])} to move`, fen: fens[ply], lines, dots: true });
+      } else {
+        const v = variation;
+        if (v.base && v.base.group) groups.push(v.base.group);
+        if (!(v.retry && !v.retry.done)) groups.push({ key: `var:${v.chess.fen()}`, title: 'From here', sub: `${sideOf(v.chess.fen())} to move`, fen: v.chess.fen(), lines: (v.lines || []).map((l) => ({ ev: l.white, pv: l.pv })), pending: !!v.pending, dots: true });
+      }
+      sp.setGroups(groups);
+      sp.setStatus(variation ? '' : (rootLines() ? `Engine depth ${review.depth}` : ''));
+    }
+
+    /** A suggested move was tapped: play the line up to it, explain it, and draw the explanation on the board. */
+    function pickSuggestion(group, li, i, line) {
+      const ucis = line.pv;
+      previewLine(group.fen, ucis, i, group);
+      const all = parsePv(group.fen, ucis, 12);
+      if (!all.length || i < 0) { whyOverlay = null; whyKey = null; sp.setWhy(null); paint(); return; }
+      const idx = Math.min(i, all.length - 1);
+      const fenBefore = idx === 0 ? group.fen : all[idx - 1].fen;
+      const root = group.fen.split(' ')[1];
+      const why = whyMove({ fen: fenBefore, uci: all[idx].uci, pv: all.map((x) => x.uci), lines: normLines(group.lines, 3), idx, rootColor: root, viewer: record.color === 'w' || record.color === 'b' ? record.color : null });
+      showWhy(why, `${group.key}:${li}:${idx}`);
+    }
+    function showWhy(why, key) {
+      if (!why) { whyOverlay = null; whyKey = null; sp.setWhy(null); paint(); return; }
+      whyKey = key;
+      // only what the move does goes on the board (the move itself is already shown by the highlighted squares)
+      whyOverlay = why.overlay ? { arrows: why.overlay.arrows.filter((a) => a.key !== 'mv'), marks: why.overlay.marks } : null;
+      sp.setWhy(whyCard(why, { onClose: () => { whyOverlay = null; whyKey = null; sp.setWhy(null); paint(); }, onSquares: flash }));
+      paint();
+      nudgeIntoView(sp.el.querySelector('.why-card'));
+    }
+
+    /** "Show on board" in the move note: what this move does, drawn on the board in place of the engine arrows. */
+    function toggleMoveVisual(m) {
+      if (moveVisual) moveVisual = null;
+      else {
+        const o = moveOverlay(m.fenBefore, m.uci, { when: 'after', withMove: false });
+        moveVisual = o ? { arrows: o.arrows, marks: o.marks } : null;
+        if (!moveVisual) toast('Nothing special to show for this move');
+      }
+      renderCoach(); paint();
     }
 
     /**
      * Play a suggested line out on the board up to move `idx` (-1 = its starting position). The result behaves like any
-     * variation: it is evaluated, offers its own suggested moves, and you can keep playing your own moves from it.
+     * variation: it is evaluated, offers its own suggestions, and you can keep playing your own moves from it.
      */
-    function previewLine(fen, ucis, idx) {
+    function previewLine(fen, ucis, idx, group = null) {
       const all = parsePv(fen, ucis, 12);
       if (!all.length) return;
       idx = Math.max(-1, Math.min(all.length - 1, idx));
       const { chess: base, last } = replayPv(fen, all.map((m) => m.uci), idx);
       const from = variation ? variation.from : ply;
-      variation = { chess: base, from, retry: null, msg: '', pending: true, suggest: null, line: { fen, ucis: all.map((m) => m.uci), idx } };
+      const keepGroup = group || (variation && variation.base && variation.base.fen === fen ? variation.base.group : null);
+      variation = { chess: base, from, retry: null, msg: '', pending: true, lines: null, evalNow: null, base: { fen, ucis: all.map((m) => m.uci), idx, group: keepGroup } };
+      bestShown = false; moveVisual = null;
       if (last) playForMove(last, base.inCheck());
       board.setPosition(base.fen(), { lastMove: last ? { from: last.from, to: last.to } : null, animate: last ? [{ from: last.from, to: last.to }] : false, check: checkSquare(base) });
-      board.clearOverlays(); bestShown = false;
-      lineBox.replaceChildren();
-      renderCoach(); revealCoach();
+      renderCoach(); paint();
       evalVariation(base, last);
+    }
+
+    /** Step back / forward inside the line that is being played out (the stepper in the exploring bar). */
+    function stepLine(to) {
+      const v = variation;
+      if (!v || !v.base) return;
+      const g = v.base.group;
+      previewLine(v.base.fen, v.base.ucis, to, g);
+      if (g) sp.setActive(to >= 0 ? { key: g.key, li: Math.max(0, (normLines(g.lines, 3).findIndex((l) => l.pv[0] === v.base.ucis[0]))), i: to } : null);
+      if (to >= 0) {
+        const all = parsePv(v.base.fen, v.base.ucis, 12);
+        const fenBefore = to === 0 ? v.base.fen : all[to - 1].fen;
+        showWhy(whyMove({ fen: fenBefore, uci: all[to].uci, pv: all.map((x) => x.uci), lines: g ? normLines(g.lines, 3) : [], idx: to, rootColor: v.base.fen.split(' ')[1] }), `step:${to}`);
+      } else showWhy(null);
     }
 
     /** Take back the last move played inside a variation. */
     function undoVariation() {
       if (!variation || !variation.chess.history().length) return;
       const v = variation;
-      if (v.line) { previewLine(v.line.fen, v.line.ucis, v.line.idx - 1); return; }
-      v.chess.undo(); v.retry = null; v.msg = ''; v.suggest = null; v.pending = true;
+      if (v.base) { stepLine(v.base.idx - 1); return; }
+      v.chess.undo(); v.retry = v.retry; v.msg = ''; v.lines = null; v.pending = true; v.evalNow = null;
       const hist = v.chess.history({ verbose: true }); const lm = hist[hist.length - 1];
       board.setPosition(v.chess.fen(), { lastMove: lm ? { from: lm.from, to: lm.to } : null, animate: false, check: checkSquare(v.chess) });
-      board.clearOverlays(); renderCoach();
+      whyOverlay = null; sp.setWhy(null);
+      renderCoach(); paint();
       evalVariation(v.chess, lm || null);
     }
 
-    let bestShown = false;
     function toggleBest(force) {
       if (ply === 0 || variation) return;
       const m = mv(ply - 1);
       bestShown = force != null ? force : !bestShown;
       if (bestShown && m.best) {
         board.setPosition(m.fenBefore, { animate: false, lastMove: null });
-        board.setArrows([{ from: m.best.slice(0, 2), to: m.best.slice(2, 4), color: '#5fc88f', opacity: 0.9 }, ...(m.uci !== m.best ? [{ from: m.uci.slice(0, 2), to: m.uci.slice(2, 4), color: '#ef6b6b', opacity: 0.75 }] : [])]);
+        board.setOverlay({ arrows: [{ from: m.best.slice(0, 2), to: m.best.slice(2, 4), color: COL.best, width: 0.18, opacity: 0.92 }, ...(m.uci !== m.best ? [{ from: m.uci.slice(0, 2), to: m.uci.slice(2, 4), color: COL.reply, width: 0.14, opacity: 0.75 }] : [])], marks: {}, badges: {} });
         toast(`Best was ${m.bestSan || m.best}`);
       } else { goTo(ply, false); }
     }
 
     function retry(m) {
-      variation = { chess: new Chess(m.fenBefore), from: ply - 1, retry: m, msg: 'Find a better move than the one you played.' };
+      variation = { chess: new Chess(m.fenBefore), from: ply - 1, retry: m, msg: 'Find a better move than the one you played.', lines: null, base: null };
+      bestShown = false; moveVisual = null; whyOverlay = null; sp.setWhy(null);
       board.setPosition(m.fenBefore, { animate: false });
       board.clearOverlays();
-      renderCoach();
+      renderCoach(); paint();
     }
 
     async function enterVariation(mvv) {
@@ -364,10 +481,11 @@ function reviewScreen(view, ctx, record, toInput, setTeardown) {
       if (!moved) return false;
       playForMove(moved, base.inCheck());
       const retryMove = variation && variation.retry;
-      variation = { chess: base, from, retry: retryMove && !retryMove.done ? retryMove : null, msg: '', pending: true, suggest: null, line: null };
+      bestShown = false; moveVisual = null; whyOverlay = null; sp.setWhy(null); sp.setActive(null);
+      variation = { chess: base, from, retry: retryMove && !retryMove.done ? retryMove : null, msg: '', pending: true, lines: null, evalNow: null, base: null };
       board.setPosition(base.fen(), { lastMove: { from: moved.from, to: moved.to }, animate: false, check: checkSquare(base) });
       board.clearOverlays();
-      renderCoach(); lineBox.replaceChildren();
+      renderCoach(); paint();
       await evalVariation(base, moved);
       return true;
     }
@@ -379,10 +497,11 @@ function reviewScreen(view, ctx, record, toInput, setTeardown) {
       try {
         const engine = await ctx.engine();
         if (my !== liveToken || !alive || variation !== v) return;
-        if (!engineSafe(base.fen()) || base.isGameOver()) { v.msg = base.isCheckmate() ? 'Checkmate.' : base.isGameOver() ? 'The game is over here.' : v.msg; v.pending = false; renderCoach(); return; }
+        if (!engineSafe(base.fen()) || base.isGameOver()) { v.msg = base.isCheckmate() ? 'Checkmate.' : base.isGameOver() ? 'The game is over here.' : v.msg; v.pending = false; v.lines = []; renderCoach(); paint(); return; }
         const r = await engine.go({ fen: base.fen(), depth: 12, multipv: 3 });
         if (my !== liveToken || !alive || variation !== v) return;
         const e = r.lines[0].white;
+        v.evalNow = e;
         evalBar.update(winPct(e), fmtEval(e, { noPlus: true }));
         const rm = v.retry;
         let reveal = true;
@@ -394,14 +513,14 @@ function reviewScreen(view, ctx, record, toInput, setTeardown) {
           rm.done = lossNow <= 6 || uciOf(moved) === rm.best;
           v.msg = uciOf(moved) === rm.best ? `Yes — ${moved.san} is the engine's top choice.` : lossNow <= 6 ? `${moved.san} works too (${fmtEval(e)}). The engine slightly prefers ${rm.bestSan}.` : lossNow <= 12 ? `${moved.san} is better than the original but still gives something up (${fmtEval(e)}). Try again.` : `Not quite — ${moved.san} still leaves you worse (${fmtEval(e)}). Think about the points the coach listed.`;
           reveal = rm.done;
-          if (!rm.done) { setTimeout(() => { if (variation === v && v.retry === rm) { v.chess.undo(); board.setPosition(v.chess.fen(), { animate: false }); } }, 1100); }
+          if (!rm.done) { setTimeout(() => { if (variation === v && v.retry === rm) { v.chess.undo(); board.setPosition(v.chess.fen(), { animate: false }); paint(); } }, 1100); }
         } else {
           v.msg = moved ? `${moved.san}: ${fmtEval(e)}` : `Position: ${fmtEval(e)}`;
         }
-        v.suggest = reveal ? { fen: base.fen(), lines: r.lines.slice(0, 3) } : null;
+        v.lines = reveal ? r.lines.slice(0, 3) : null;
         v.pending = false;
-        renderCoach();
-      } catch (er) { if (variation === v) { v.pending = false; if (alive) renderCoach(); } }
+        renderCoach(); renderBanner(); paint();
+      } catch (er) { if (variation === v) { v.pending = false; if (alive) { renderCoach(); paint(); } } }
     }
 
     // controls
@@ -435,6 +554,7 @@ function reviewScreen(view, ctx, record, toInput, setTeardown) {
       h('div.row', h('button.btn.small', { onclick: () => { navigator.clipboard && navigator.clipboard.writeText(record.pgn || ''); toast('PGN copied', 'good'); } }, icon('copy', 15), 'Copy PGN'),
         record.id ? null : null,
         h('button.btn.small', { onclick: () => toInput() }, icon('plus', 15), 'New analysis'),
+        h('button.btn.small', { onclick: () => ctx.navigate('#/analyze?live=1&fen=' + encodeURIComponent(curFen())), title: 'Continue from this position on the live analysis board' }, icon('search', 15), 'Analysis board'),
         record.color === 'none' || !record.color ? h('button.btn.small', { onclick: () => pickSide() }, icon('user', 15), 'I played…') : h('button.btn.small', { onclick: () => ctx.navigate('#/coach') }, icon('target', 15), 'See coaching plan')));
 
     root.replaceChildren(h('div.game-layout.review-layout',

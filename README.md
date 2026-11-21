@@ -6,6 +6,9 @@ Stockfish does the analysis; a rule-based coach explains *why* a move matters an
 **Features**
 
 - **Play** the computer at 10 levels (≈400 → full Stockfish), pick White/Black/Random, time controls from unlimited to bullet, takebacks, 3-step hints, draw/resign, resume unfinished games, every game saved with all its moves.
+- **Two players** — *Play → Play a friend*: two people share one screen (names, time control, takebacks, draw, resign, resume). The board can turn after every move, and the coach can stay off, comment on every move, or comment and give hints. Games are saved under **My games → Played**.
+- **Live analysis board** — *Analyze → Play / Set up*: set up any position (piece palette, side to move, castling, paste a FEN) or start from the opening and play on. Stockfish analyses every position as you go with best-move suggestions, an eval bar, and a verdict on each move you play (with *Take it back* / *Play X instead*). Review the whole game when you are done, or copy the FEN / PGN.
+- **Visual coach** — suggested and best moves are drawn as arrows on the board (green = best, blue = 2nd, amber = 3rd, orange = attacks, dashed green = protects, red dashed = opponent's reply). Tap any suggestion to play it and get a **"why this move" card**: what the move does, what it threatens, how it compares with the alternatives, and what follows. Squares named in the coach's text are tappable and flash on the board. Opponent moves in games are explained on the board too (tap **Why?** while playing the computer), and Coach Play draws the refutation when it stops a blunder. Arrows can be switched off with the *Arrows* button; the suggestion list stays put while you tap through moves, so the page never jumps back to the top.
 - **Rating** starts at 600 (Beginner) and moves quickly then settles (K=64→16, provisional for 10 games). Hinted/takeback games are unrated.
 - **Analyze** any PGN, move list, FEN or saved game: move classification (Brilliant, Great, Best, Excellent, Good, Book, Inaccuracy, Mistake, Blunder). Every move is compared with the engine's best move **inside the same search**; serious verdicts are re-checked at a higher depth, and decided positions are judged by centipawn loss as well as win probability so blunders by the lost or the winning side are never labelled "best". Plus accuracy, eval graph, engine lines, free variation exploring, and a **coach note on every mistake**: what happened, what you should have considered, and a training recommendation.
 - **Tap-to-play suggestions** — every suggested move is a button. In **Analyze**, the engine's top three lines for each position and the coach's "engine suggests" line can be played out on the board move by move (step through them, keep playing your own moves, and the engine evaluates each one). In lessons, openings and endgames, "Show me", hints and corrections come with a **Play Nf3** button that plays the move for you, and in Watch mode every move of an opening line is tappable.
@@ -55,7 +58,9 @@ node scripts/gen-sw.mjs          # refresh the offline cache list after editing 
 index.html  manifest.webmanifest  sw.js        app shell + PWA (sw.js is generated)
 css/styles.css                                  design system
 js/app.js                                       router, chrome, onboarding
-js/pages/    play analyze learn train coach games profile home
+js/pages/    play twoplayer analyze learn train coach games profile home
+js/live.js  live analysis board (+ fenutil.js pure helpers)   js/visual.js  arrows/rings/"why" text (pure)
+js/suggest.js  stable suggestion panel   js/whyui.js  why-card, legend, tappable squares   css/visual.css
 js/learn/    opening.js (opening trainer)  guided.js (endgames/middlegames)
 js/engine.js UCI wrapper (Worker in browser, child process in Node)
 js/analysis.js  review pipeline     js/judge.js  same-search move judging (analysis, coach play, lessons)

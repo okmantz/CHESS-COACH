@@ -16,6 +16,8 @@ import { makeHint } from '../coach.js';
 import { play as sfx, playForMove } from '../sound.js';
 import { trackPlan } from '../plan.js';
 import { crownsFor, recordCrowns, crownBanner } from '../crowns.js';
+import { describePlayed } from '../visual.js';
+import { legend as visLegend } from '../whyui.js';
 
 const LIVE_KEY = 'chesscoach.live';
 const TCS = [
@@ -82,6 +84,7 @@ function setupView(resumable, onStart, onResume) {
   root.append(h('div',
     h('div.page-head', h('h1', 'Play')),
     h('a.card.click.mb.coach-banner', { href: '#/coach-play' }, h('div.row.nowrapr', h('div.course-icon', '🤝'), h('div.grow', h('b', 'Play a game with Coach'), h('div.small.muted', 'A guided game: the coach asks you the right questions before you move, stops blunders, and reviews your habits afterwards.')), h('span.btn.primary', 'Start', icon('right', 16)))),
+    h('a.card.click.mb.coach-banner', { href: '#/two-player' }, h('div.row.nowrapr', h('div.course-icon', '👥'), h('div.grow', h('b', 'Play a friend — two players'), h('div.small.muted', 'Share one screen and play each other. The board can turn each move, and the coach can explain the moves with arrows.')), h('span.btn', 'Play', icon('right', 16)))),
     resumable ? h('div.card.mb', { style: { borderColor: 'var(--accent)' } }, h('div.row', h('div.grow', h('b', 'Game in progress'), h('div.small.muted', `vs ${levelByN(resumable.level).who} · ${resumable.sans.length} moves`)),
       h('button.btn.primary', { onclick: () => onResume(resumable) }, 'Resume'), h('button.btn.ghost', { onclick: () => { localStorage.removeItem(LIVE_KEY); location.hash = '#/play?new=1'; location.reload(); } }, 'Abandon'))) : null,
     h('div.card.mb.row', h('div.rank-ring', { style: { '--p': rk.progress * 100, '--c': rk.color } }, h('div', h('b', String(rating)), h('span', rk.name))),
@@ -113,6 +116,7 @@ function gameView(view, ctx, cfg, resume, back, rematch) {
   const chess = new Chess();
   for (const san of st.sans) chess.move(san);
   const clocks = st.clocks || { w: tc.ms, b: tc.ms };
+  let lastBot = null;
   let alive = true, over = false, token = 0, thinking = false, lastTick = Date.now(), evalHist = [], lastEval = null, prevBotEval = null;
   let view_ply = null; // null = live, else index being reviewed
   const settings = s0.settings;
@@ -137,10 +141,11 @@ function gameView(view, ctx, cfg, resume, back, rematch) {
   const btn = (ic, label, fn, cls = '') => h('button.btn', { class: cls, onclick: fn, 'aria-label': label }, icon(ic, 18), h('span', label));
   const bUndo = btn('undo', 'Takeback', () => takeback());
   const bHint = btn('bulb', 'Hint', () => hint());
+  const bWhy = btn('eye', 'Why?', () => explainBot());
   const bDraw = btn('draw', 'Draw', () => offerDraw());
   const bResign = btn('flag', 'Resign', () => resign());
   const bFlip = btn('flip', 'Flip', () => board.flip());
-  const controls = h('div.actions-bar', bUndo, bHint, bDraw, bResign, bFlip);
+  const controls = h('div.actions-bar', bUndo, bHint, bWhy, bDraw, bResign, bFlip);
   const strip = moveStrip({ onPrev: () => goPly((view_ply ?? chess.history().length) - 1), onNext: () => goPly(view_ply == null ? null : view_ply + 1), onSelect: (i) => goPly(i + 1) });
 
   const layout = h('div.game-layout.fit',
@@ -191,6 +196,7 @@ function gameView(view, ctx, cfg, resume, back, rematch) {
     bottom.setClock(tmr(me), !over && chess.turn() === me, show);
     bUndo.disabled = over || chess.history().length < (me === 'w' ? 1 : 2) || thinking && false;
     bHint.disabled = over || chess.turn() !== me || thinking;
+    bWhy.disabled = over || !lastBot || thinking;
     bDraw.disabled = over || chess.history().length < 2;
     status.textContent = over ? '' : thinking ? `${L.who} is thinking…` : chess.turn() === me ? (chess.inCheck() ? 'Check! Your move.' : 'Your move') : '';
   }
@@ -237,7 +243,9 @@ function gameView(view, ctx, cfg, resume, back, rematch) {
       if (wait) await new Promise((r) => setTimeout(r, wait));
       if (my !== token || !alive) return;
       if (chess.history().length >= 8 && botWantsToResign(st.level, res.eval, bot, evalHist)) { thinking = false; toast(`${L.who} resigns`, 'good'); finish('win', `${L.who} resigned`); return; }
+      const fenBeforeBot = chess.fen();
       const mv = chess.move({ from: res.uci.slice(0, 2), to: res.uci.slice(2, 4), promotion: res.uci[4] });
+      lastBot = { fenBefore: fenBeforeBot, uci: res.uci };
       if (tc.ms) clocks[bot] -= 0; // time already deducted by ticking
       thinking = false;
       afterMove(mv, false);
@@ -294,11 +302,22 @@ function gameView(view, ctx, cfg, resume, back, rematch) {
     st.rated = false; refreshBars();
   }
 
+  /** "Why?": the coach explains what the opponent's last move does, drawn on the board. */
+  function explainBot() {
+    if (over || !lastBot || view_ply !== null) return;
+    let d = null; try { d = describePlayed({ fenBefore: lastBot.fenBefore, uci: lastBot.uci, viewer: me }); } catch (e) { d = null; }
+    if (!d) { toast('Nothing to show yet'); return; }
+    const draw = () => { if (d.overlay) board.setOverlay({ arrows: settings.showArrows === false ? [] : d.overlay.arrows, marks: d.overlay.marks }); };
+    draw();
+    dock.el.classList.remove('hidden'); dock.clear();
+    dock.say([h('p', h('b', `${L.who} played ${d.san}`)), h('p', [d.sentences.join(' '), d.threatText].filter(Boolean).join(' ')), d.overlay && d.overlay.legend.length ? visLegend(d.overlay.legend) : null, h('button.btn.small', { onclick: draw }, icon('eye', 14), 'Show on board')].filter(Boolean));
+  }
+
   async function takeback() {
     if (over) return;
     const hist = chess.history();
     if (!hist.length) return;
-    token++; thinking = false;
+    token++; thinking = false; lastBot = null;
     // undo to the human's previous turn
     chess.undo();
     if (chess.turn() !== me && hist.length > 1) chess.undo();

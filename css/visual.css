@@ -1,0 +1,124 @@
+/* Chess Coach — visual coaching: arrows & rings on the board, the "why this move" card, the stable suggestion panel,
+   the live analysis board and the two-player mode. Loaded after styles.css and mobile.css; it only adds to them. */
+
+/* ============================================================ 1. on-board overlays */
+.arrow-layer { filter: drop-shadow(0 1px 1.4px rgba(0, 0, 0, .38)); }
+.arrow-layer .arrow-path { animation: arrow-in .22s ease-out both; }
+@keyframes arrow-in { from { opacity: 0; } }
+
+/* rings: an inset outline instead of a tint, so the piece and the square colour both stay readable */
+.sq.mark-ring-bad { box-shadow: inset 0 0 0 4px rgba(229, 72, 77, .95), inset 0 0 14px 2px rgba(229, 72, 77, .55); }
+.sq.mark-ring-warn { box-shadow: inset 0 0 0 4px rgba(242, 184, 75, .98), inset 0 0 14px 2px rgba(242, 184, 75, .5); }
+.sq.mark-ring-good { box-shadow: inset 0 0 0 4px rgba(47, 168, 102, .98), inset 0 0 14px 2px rgba(47, 168, 102, .5); }
+.sq.mark-ring-info { box-shadow: inset 0 0 0 3px rgba(58, 155, 255, .9), inset 0 0 12px 1px rgba(58, 155, 255, .45); }
+.sq.flash { animation: sq-flash .5s ease-in-out 3; z-index: 2; }
+@keyframes sq-flash {
+  0%, 100% { box-shadow: inset 0 0 0 3px rgba(255, 255, 255, .95), inset 0 0 0 7px rgba(98, 184, 255, .9); }
+  50% { box-shadow: inset 0 0 0 5px rgba(255, 255, 255, .95), inset 0 0 0 11px rgba(98, 184, 255, .55); }
+}
+@media (prefers-reduced-motion: reduce) { .arrow-layer .arrow-path, .sq.flash { animation: none; } }
+html[data-reduce-motion="true"] .arrow-layer .arrow-path, html[data-reduce-motion="true"] .sq.flash { animation: none; }
+
+/* a square the coach mentions in a sentence */
+.sqref { display: inline; padding: 0 5px; margin: 0 1px; border: 0; border-radius: 6px; background: var(--accent-soft); color: var(--accent); font: inherit; font-weight: 750; cursor: pointer; text-decoration: none; }
+.sqref:hover, .sqref:focus-visible { background: var(--accent); color: var(--accent-ink); outline: none; }
+
+/* colour key */
+.vis-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; font-size: .76rem; color: var(--muted); }
+.vis-legend .lg { display: inline-flex; align-items: center; gap: 5px; }
+.vis-legend .lg i { width: 18px; height: 5px; border-radius: 3px; background: var(--c); display: inline-block; }
+.vis-legend .lg i.dash { background: repeating-linear-gradient(90deg, var(--c) 0 5px, transparent 5px 8px); }
+
+/* ============================================================ 2. the "why this move" card */
+.why-card { margin-top: 10px; padding: 12px 12px 10px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--border-soft); border-left: 4px solid var(--info); animation: why-in .2s ease-out; }
+.why-card.tone-good { border-left-color: var(--good); } .why-card.tone-ok { border-left-color: var(--info); } .why-card.tone-warn { border-left-color: var(--warn); }
+@keyframes why-in { from { opacity: 0; transform: translateY(-4px); } }
+.why-head { display: flex; align-items: center; gap: 8px; }
+.why-label { font-size: .68rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; padding: 3px 8px; border-radius: 99px; background: var(--surface-3); color: var(--text); }
+.tone-good .why-label { background: rgba(95, 200, 143, .18); color: var(--good); } .tone-warn .why-label { background: rgba(242, 184, 75, .18); color: var(--warn); } .tone-ok .why-label, .tone-info .why-label { background: rgba(98, 184, 255, .16); color: var(--info); }
+.why-san { font-size: 1.15rem; letter-spacing: -.01em; }
+.why-headline { margin: 8px 0 4px; font-weight: 650; line-height: 1.35; }
+.why-points { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.why-points li { display: flex; gap: 9px; align-items: flex-start; font-size: .92rem; line-height: 1.38; }
+.why-points li .icon { flex: none; margin-top: 2px; color: var(--accent); }
+.why-points li.k-engine .icon { color: var(--info); } .why-points li.k-threat .icon { color: var(--warn); } .why-points li.k-material .icon { color: var(--good); }
+.why-next { margin: 8px 0 0; font-size: .9rem; }
+
+/* ============================================================ 3. the stable suggestion panel */
+.sug-panel { display: flex; flex-direction: column; gap: 10px; overflow-anchor: none; }
+.sug-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0; }
+.sug-title { display: flex; flex-direction: column; gap: 1px; min-width: 0; } .sug-title .xs { line-height: 1.25; }
+.arrow-toggle { flex: none; } .arrow-toggle.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.sug-groups { display: flex; flex-direction: column; gap: 14px; }
+.sug-gtitle { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; font-weight: 750; font-size: .9rem; }
+.sug-spin { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--accent); animation: sug-spin .8s linear infinite; align-self: center; }
+@keyframes sug-spin { to { transform: rotate(360deg); } }
+.sug-group.stale .sug-list { opacity: .55; }
+.sug-empty { padding: 4px 0; }
+.sug-dot { flex: none; width: 10px; height: 36px; border-radius: 5px; background: var(--c); align-self: stretch; min-height: 36px; }
+.sug-status { min-height: 1em; }
+.sug-why:empty { display: none; }
+.sug-list .sug-row { align-items: stretch; }
+.sug-panel .mv-chip { scroll-margin: 80px; }
+.legend-ranks { margin-top: 0; }
+
+/* the slim bar shown instead of the move note while a variation is open */
+.explore-bar { padding: 12px; }
+.explore-bar .line-stepper { margin-top: 6px; }
+
+/* ============================================================ 4. live analysis board */
+.live-hero { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, var(--surface)), var(--surface)); }
+.live-hero .row.tight { flex-wrap: nowrap; }
+.live-tools { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+.tools-row { gap: 10px; align-items: center; }
+.live-verdict:empty { display: none; }
+.live-verdict .verdict-line { padding: 10px 12px; }
+.player-bar.on-turn { box-shadow: inset 0 -3px 0 var(--accent); border-radius: 10px; }
+.live-moves { padding: 12px; }
+.live-actions { gap: 8px; }
+.live-status { text-align: center; }
+
+.setup-card { display: flex; flex-direction: column; gap: 12px; }
+.setup-card .card-title { margin: 0; }
+.palette { display: flex; flex-direction: column; gap: 6px; }
+.palette-row { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.palette-row.tools { grid-template-columns: 1fr 1fr; }
+.pal-btn { display: grid; place-items: center; gap: 6px; grid-auto-flow: column; min-height: 46px; padding: 4px; border-radius: 11px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font: inherit; font-weight: 700; cursor: pointer; }
+.pal-btn:hover { border-color: var(--accent); } .pal-btn.active { background: var(--accent-soft); border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.pal-btn .piece { position: static; width: 38px; height: 38px; display: block; }
+.chk-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; }
+.chk { display: flex; align-items: center; gap: 8px; font-size: .9rem; } .chk.off { opacity: .45; }
+.chk input { width: 18px; height: 18px; accent-color: var(--accent); }
+.setup-card .seg { align-self: stretch; } .setup-card .seg button { flex: 1; }
+
+/* ============================================================ 5. two-player mode */
+.mode-switch { display: flex; margin-bottom: 14px; } .mode-switch .seg { width: 100%; } .mode-switch .seg button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.twop-setup { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.name-fields { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+.name-fields .nf { display: flex; flex-direction: column; gap: 6px; }
+.name-fields .nf .tag-dot { display: inline-flex; align-items: center; gap: 6px; font-size: .8rem; font-weight: 700; color: var(--muted); }
+.name-fields .nf .tag-dot i { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--border); display: inline-block; }
+.name-fields .nf .tag-dot i.w { background: #f4f4f4; } .name-fields .nf .tag-dot i.b { background: #26282e; }
+.twop-bar { display: flex; align-items: center; gap: 10px; }
+.twop-bar .player-bar { flex: 1; }
+.player-bar.low-clock .clock { color: var(--bad); }
+.twop-turn { text-align: center; font-weight: 700; min-height: 20px; }
+.twop-turn .dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; border: 1px solid var(--border); }
+.twop-turn .dot.w { background: #f4f4f4; } .twop-turn .dot.b { background: #26282e; }
+.resign-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* ============================================================ 6. the visual coach in games */
+.coach-visual-note { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+.say .vis-legend { margin-top: 6px; }
+.say .btn.small { margin-top: 6px; }
+.say .sqref { font-size: .95em; }
+
+@media (max-width: 959px) {
+  .why-card { padding: 11px; }
+  .why-points li { font-size: .9rem; }
+  .name-fields { grid-template-columns: 1fr; }
+  .palette-row .pal-btn { min-height: 44px; } .pal-btn .piece { width: 32px; height: 32px; }
+}
+
+.avatar-dot { width: 38px; height: 38px; border-radius: 50%; border: 2px solid var(--border); flex: none; }
+.avatar-dot.w { background: #f4f4f4; } .avatar-dot.b { background: #26282e; }

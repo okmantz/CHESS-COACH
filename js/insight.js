@@ -211,20 +211,20 @@ export function threatsAgainst(fen, victim, { limit = 4 } = {}) {
     if (!f) continue;
     const T = f.themes;
     const valCap = m.captured ? VAL[m.captured] : 0;
-    if (T.includes('mate')) { out.push({ kind: 'mate', san: m.san, text: `${m.san} would be checkmate.`, squares: [m.to], severity: 100 }); continue; }
+    if (T.includes('mate')) { out.push({ kind: 'mate', san: m.san, uci: m.from + m.to + (m.promotion || ''), text: `${m.san} would be checkmate.`, squares: [m.to], severity: 100 }); continue; }
     // a capture is a threat only if it nets material after every recapture (pins, x-rays and the king's limits included)
     const net = m.captured && !m.flags.includes('e') ? seeSafe(ch.fen(), m.to, attacker, m.from) : 0;
     if (m.captured && net > 0) {
       const defended = ch.attackers(m.to, victim).length > 0;
       const what = m.captured === 'p' ? 'pawn' : nm(m.captured);
-      out.push({ kind: 'material', san: m.san, text: `${m.san} would win your ${what} on ${m.to}${defended ? ' (the recapture would not make up for it)' : ' (it is not protected)'}.`, squares: [m.to], severity: (m.captured === 'p' ? 28 : 50) + net * 4 + valCap });
+      out.push({ kind: 'material', san: m.san, uci: m.from + m.to + (m.promotion || ''), text: `${m.san} would win your ${what} on ${m.to}${defended ? ' (the recapture would not make up for it)' : ' (it is not protected)'}.`, squares: [m.to], severity: (m.captured === 'p' ? 28 : 50) + net * 4 + valCap });
     } else if (T.includes('fork') && f.info.targets && f.info.targets.length >= 2) {
-      out.push({ kind: 'fork', san: m.san, text: `${m.san} would fork ${f.info.targets.map((t) => `your ${nm(t.type)} on ${t.square}`).join(' and ')}.`, squares: f.info.targets.map((t) => t.square), severity: 60 });
+      out.push({ kind: 'fork', san: m.san, uci: m.from + m.to + (m.promotion || ''), text: `${m.san} would fork ${f.info.targets.map((t) => `your ${nm(t.type)} on ${t.square}`).join(' and ')}.`, squares: f.info.targets.map((t) => t.square), severity: 60 });
     } else if ((T.includes('pin') || T.includes('skewer')) && (f.info.pin || f.info.skewer)) {
       const sqs = f.info.pin ? [f.info.pin.pinned, f.info.pin.behind] : [f.info.skewer.front, f.info.skewer.behind];
-      out.push({ kind: 'pin', san: m.san, text: `${m.san} would ${f.info.pin ? 'pin' : 'skewer'} your pieces on ${sqs.join(' and ')}.`, squares: sqs, severity: 35 });
+      out.push({ kind: 'pin', san: m.san, uci: m.from + m.to + (m.promotion || ''), text: `${m.san} would ${f.info.pin ? 'pin' : 'skewer'} your pieces on ${sqs.join(' and ')}.`, squares: sqs, severity: 35 });
     } else if (T.includes('discovered')) {
-      out.push({ kind: 'discovered', san: m.san, text: `${m.san} would uncover an attack with a second piece.`, squares: [m.to], severity: 30 });
+      out.push({ kind: 'discovered', san: m.san, uci: m.from + m.to + (m.promotion || ''), text: `${m.san} would uncover an attack with a second piece.`, squares: [m.to], severity: 30 });
     }
   }
   // de-duplicate by san and keep the worst few

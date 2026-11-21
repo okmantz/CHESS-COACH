@@ -25,6 +25,7 @@ export class Board {
     this.badges = {};
     this.arrows = [];
     this.hints = {};
+    this.flash = {};
     this._drag = null;
 
     this.el = h('div.board');
@@ -171,6 +172,7 @@ export class Board {
       if (this.checkSq === sq) el.classList.add('check');
       if (this.marks[sq]) el.classList.add('mark-' + this.marks[sq]);
       if (this.hints[sq]) el.classList.add('hint');
+      if (this.flash[sq]) el.classList.add('flash');
     }
     this.badgeLayer.replaceChildren();
     for (const [sq, b] of Object.entries(this.badges)) {
@@ -188,6 +190,15 @@ export class Board {
   setHint(sqs) { this.hints = {}; (sqs || []).forEach((s) => { this.hints[s] = true; }); this._refresh(); }
   setArrows(arrows) { this.arrows = arrows || []; this._drawArrows(); }   // [{from,to,color,opacity}]
   clearOverlays() { this.marks = {}; this.badges = {}; this.arrows = []; this.hints = {}; this._refresh(); }
+  /** Replace arrows, marks and badges in one go (a single redraw). Any key may be left out to clear it. */
+  setOverlay({ arrows, marks, badges } = {}) { this.arrows = arrows || []; this.marks = marks || {}; this.badges = badges || {}; this.hints = {}; this._refresh(); }
+  /** Briefly pulse some squares (used when the coach mentions a square in its explanation). */
+  flashSquares(sqs, ms = 1700) {
+    clearTimeout(this._flashT);
+    this.flash = {}; (sqs || []).forEach((q) => { if (q) this.flash[q] = true; });
+    this._refresh();
+    this._flashT = setTimeout(() => { this.flash = {}; this._refresh(); }, ms);
+  }
   setCheck(sq) { this.checkSq = sq; this._refresh(); }
 
   _drawArrows() {
@@ -195,28 +206,40 @@ export class Board {
     svg.replaceChildren();
     const ns = 'http://www.w3.org/2000/svg';
     const defs = document.createElementNS(ns, 'defs');
+    const idOf = (c) => 'ah' + String(c).replace(/[^a-z0-9]/gi, '');
     const colors = new Set(this.arrows.map((a) => a.color || '#7fb855'));
     colors.forEach((c) => {
       const m = document.createElementNS(ns, 'marker');
-      const id = 'ah' + c.replace('#', '');
-      m.setAttribute('id', id); m.setAttribute('viewBox', '0 0 10 10'); m.setAttribute('refX', '6'); m.setAttribute('refY', '5');
+      m.setAttribute('id', idOf(c)); m.setAttribute('viewBox', '0 0 10 10'); m.setAttribute('refX', '6'); m.setAttribute('refY', '5');
       m.setAttribute('markerWidth', '3.2'); m.setAttribute('markerHeight', '3.2'); m.setAttribute('orient', 'auto');
       const p = document.createElementNS(ns, 'path'); p.setAttribute('d', 'M0,0 L10,5 L0,10 z'); p.setAttribute('fill', c);
       m.append(p); defs.append(m);
     });
     svg.append(defs);
     for (const a of this.arrows) {
+      if (!a || !a.from || !a.to || a.from === a.to) continue;
       const c = a.color || '#7fb855';
       const f = this._pos(a.from), t = this._pos(a.to);
-      let x1 = f.x + 0.5, y1 = f.y + 0.5, x2 = t.x + 0.5, y2 = t.y + 0.5;
-      const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1;
-      const sh = 0.32; // shorten for arrow head
-      x2 -= (dx / len) * sh; y2 -= (dy / len) * sh;
-      const line = document.createElementNS(ns, 'line');
-      line.setAttribute('x1', x1); line.setAttribute('y1', y1); line.setAttribute('x2', x2); line.setAttribute('y2', y2);
-      line.setAttribute('stroke', c); line.setAttribute('stroke-width', a.width || 0.16); line.setAttribute('stroke-linecap', 'round');
-      line.setAttribute('opacity', a.opacity || 0.85); line.setAttribute('marker-end', `url(#ah${c.replace('#', '')})`);
-      svg.append(line);
+      const x1 = f.x + 0.5, y1 = f.y + 0.5;
+      let x2 = t.x + 0.5, y2 = t.y + 0.5;
+      const adx = Math.abs(t.x - f.x), ady = Math.abs(t.y - f.y);
+      const knight = (adx === 1 && ady === 2) || (adx === 2 && ady === 1);
+      // knights travel in an L (along the long side first) so the arrow never cuts through the pieces in between
+      let pts = [[x1, y1], [x2, y2]];
+      if (knight) pts = adx === 2 ? [[x1, y1], [x2, y1], [x2, y2]] : [[x1, y1], [x1, y2], [x2, y2]];
+      // shorten the last leg so the head touches the target square instead of overshooting it
+      const [px, py] = pts[pts.length - 2];
+      const dx = x2 - px, dy = y2 - py, len = Math.hypot(dx, dy) || 1;
+      const sh = 0.32;
+      pts[pts.length - 1] = [x2 - (dx / len) * sh, y2 - (dy / len) * sh];
+      const path = document.createElementNS(ns, 'path');
+      path.setAttribute('d', 'M' + pts.map((q) => `${q[0].toFixed(3)},${q[1].toFixed(3)}`).join(' L'));
+      path.setAttribute('fill', 'none'); path.setAttribute('stroke', c); path.setAttribute('stroke-width', a.width || 0.16);
+      path.setAttribute('stroke-linecap', 'round'); path.setAttribute('stroke-linejoin', 'round');
+      path.setAttribute('opacity', a.opacity || 0.85); path.setAttribute('marker-end', `url(#${idOf(c)})`);
+      if (a.dash) path.setAttribute('stroke-dasharray', '0.22 0.2');
+      path.setAttribute('class', 'arrow-path');
+      svg.append(path);
     }
   }
 

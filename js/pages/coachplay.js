@@ -25,6 +25,8 @@ import { tier, currentRung, recordResult, progressFor, isPassed } from '../ladde
 import { avatarEl } from '../avatars.js';
 import { play as sfx, playForMove } from '../sound.js';
 import { trackPlan } from '../plan.js';
+import { describePlayed, whyMove, COL } from '../visual.js';
+import { whyCard, legend as visLegend } from '../whyui.js';
 import { crownsFor, recordCrowns, crownBanner, withCrowns, COUNT_BLUNDER_CHECK_RETRIES } from '../crowns.js';
 
 const MODES = [
@@ -177,7 +179,7 @@ function gameView(view, ctx, cfg, back) {
 
   /* ---------- pre-move checklist (questions, not answers) ---------- */
   async function beginMyTurn() {
-    hintLevel = 0; busy = false; board.setHint([]); board.setArrows([]);
+    hintLevel = 0; busy = false; board.setHint([]);
     board.setInteractive(true);
     const fen = chess.fen();
     prefetch = engineSafe(fen) ? engine().then((e) => searchPosition(e, fen, { depth: 12, movetime: 900 })).catch(() => null) : null;
@@ -213,13 +215,21 @@ function gameView(view, ctx, cfg, back) {
     const fenNow = chess.fen();
     const th = guided ? threatsAgainst(fenNow, me, { limit: 4 }).filter((t) => !/\bpin/i.test(t.text)).slice(0, 2) : [];
     let kind = '';
+    let vis = null;
+    if (settings.coachVisuals !== false) { try { vis = describePlayed({ fenBefore, uci, viewer: me, phase: phase(), max: 1, withThreats: sup !== 'light' || full }); } catch (e) { vis = null; } }
+    const draw = () => { if (vis && vis.overlay) board.setOverlay({ arrows: settings.showArrows === false ? [] : vis.overlay.arrows, marks: vis.overlay.marks }); };
     if (th.length && (sup === 'high' || full)) {
       nodes.push(h('p', h('b', '⚠ Heads up: '), th.map((t) => t.text).join(' ')));
       kind = 'warn';
-      board.setMarks(Object.fromEntries(th.flatMap((t) => t.squares).map((s) => [s, 'warn'])));
+      if (!vis) board.setMarks(Object.fromEntries(th.flatMap((t) => t.squares).map((s) => [s, 'warn'])));
     } else if (th.length && sup === 'medium') {
       nodes.push(h('p.small', '⚠ This creates a threat. Use the checklist below to find it.'));
       kind = 'warn';
+    }
+    if (vis && vis.overlay) {
+      draw();
+      if (vis.overlay.legend.length) nodes.push(visLegend(vis.overlay.legend));
+      nodes.push(h('button.btn.small', { onclick: () => { board.clearOverlays(); draw(); } }, icon('eye', 14), 'Show on board'));
     }
     return { nodes, kind };
   }
@@ -229,7 +239,7 @@ function gameView(view, ctx, cfg, back) {
     habits.asked++;
     const d = describeOpponentMove(lastBot.fenBefore, lastBot.uci, true);
     if (d) say(d.nodes, d.kind);
-    board.setArrows([{ from: lastBot.uci.slice(0, 2), to: lastBot.uci.slice(2, 4), color: '#62b8ff', opacity: 0.85 }]);
+    if (settings.coachVisuals === false || !d) board.setArrows([{ from: lastBot.uci.slice(0, 2), to: lastBot.uci.slice(2, 4), color: '#62b8ff', opacity: 0.85 }]);
   }
 
   function showPlan() {
@@ -263,6 +273,11 @@ function gameView(view, ctx, cfg, back) {
     if (hintLevel === 1) sayText(`Hint 1 of 4 — the idea. ${makeHint(fen, best, 1).text}`);
     else if (hintLevel === 2) { board.setHint([best.slice(0, 2)]); sayText('Hint 2 of 4 — the piece. Look at the highlighted piece. What could it do?'); }
     else if (hintLevel === 3) { board.setHint([best.slice(0, 2)]); board.setMarks({ [best.slice(2, 4)]: 'info' }); sayText('Hint 3 of 4 — the square. The marked square is where this piece wants to go. Why is it good there?'); }
+    else if (settings.coachVisuals !== false) {
+      let why = null; try { why = whyMove({ fen, uci: best, lines: [], rootColor: me }); } catch (e) { why = null; }
+      if (why && why.overlay) { board.setOverlay({ arrows: settings.showArrows === false ? [] : why.overlay.arrows, marks: why.overlay.marks }); say([h('p', h('b', 'Hint 4 of 4')), whyCard(why, { onSquares: (sq) => board.flashSquares(sq) })]); }
+      else { board.setArrows([{ from: best.slice(0, 2), to: best.slice(2, 4), color: '#5fc88f', opacity: 0.95 }]); sayText(`Hint 4 of 4 — ${f ? f.san : ''}.`); }
+    }
     else { board.setArrows([{ from: best.slice(0, 2), to: best.slice(2, 4), color: '#5fc88f', opacity: 0.95 }]); sayText(`Hint 4 of 4 — ${f ? f.san : ''}. It ${f ? describeMove(f, f.san) : "is the engine's choice"}. Play it, then tell yourself why it works.`); }
   }
 
@@ -298,6 +313,7 @@ function gameView(view, ctx, cfg, back) {
       chess.undo();
       board.setPosition(chess.fen(), { lastMove: lastMoveOf(), animate: false, check: checkSquare(chess) });
       board.setMarks(Object.fromEntries(r.squares.map((s) => [s, 'warn'])));
+      if (r.replyUci && settings.coachVisuals !== false) board.setArrows([{ from: r.replyUci.slice(0, 2), to: r.replyUci.slice(2, 4), color: COL.reply, width: 0.13, opacity: 0.85, dash: true, key: 'reply' }]);
       sfx('bad');
       showIntercept(r, mv, j, uci);
       return false;
@@ -320,7 +336,7 @@ function gameView(view, ctx, cfg, back) {
     else if (reply && (reply.themes.includes('fork') || reply.themes.includes('pin') || reply.themes.includes('skewer'))) { const t = ['fork', 'pin', 'skewer'].find((x) => reply.themes.includes(x)); squares.push(replyUci.slice(2, 4)); q = `Hold on. Your opponent has a strong reply to ${mv.san}. Can a single enemy piece attack two of yours (a ${t})?`; tell = `${reply.san} would give them a ${t}.`; }
     else if (reply) { squares.push(replyUci.slice(2, 4)); q = `Hold on — ${mv.san} gives your opponent a strong answer. What is the most dangerous thing they can do next?`; tell = `The engine's answer is ${reply.san}; it leaves you clearly worse.`; }
     else { q = `Hold on — the engine thinks ${mv.san} is a ${j.cls}. Re-check what it leaves undefended.`; tell = 'It leaves you clearly worse than other moves.'; }
-    return { q, tell, squares };
+    return { q, tell, squares, replyUci };
   }
   function showIntercept(r, mv, j, uci) {
     let stage2 = 0;
