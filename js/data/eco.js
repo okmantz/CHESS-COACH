@@ -112,7 +112,9 @@ g3|King's Fianchetto Opening
 b4|Polish (Sokolsky) Opening
 `;
 
-export const ECO = RAW.trim().split('\n').map((l) => {
+import { ECO_EXTRA_RAW } from './eco2.js';
+
+export const ECO = (RAW.trim() + '\n' + ECO_EXTRA_RAW.trim()).split('\n').map((l) => {
   const [moves, name] = l.split('|');
   return { moves: moves.trim().split(/\s+/), name: name.trim() };
 });
