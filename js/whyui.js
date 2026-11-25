@@ -53,7 +53,7 @@ export function legend(keys) {
   return h('div.vis-legend', { 'aria-label': 'What the colours mean' }, ks.map((k) => h('span.lg', h('i', { class: k === 'defend' ? 'dash' : '', style: { '--c': COL[k] } }), LEGEND[k])));
 }
 
-const KIND_ICON = { engine: 'cpu', idea: 'bulb', line: 'right', threat: 'flag', material: 'trend' };
+const KIND_ICON = { engine: 'cpu', idea: 'bulb', line: 'right', threat: 'flag', material: 'trend', plan: 'target' };
 
 /**
  * The explanation card shown when a suggested move is tapped.

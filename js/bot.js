@@ -10,10 +10,10 @@ export const LEVELS = [
   { n: 4, elo: 1200, name: 'Casual', who: 'Jake', color: '#f87171', avatar: 'bot-04', blurb: 'Plays quickly and confidently. Solid basics, occasional slips.', depth: 3, mpv: 5, T: 6, rnd: 0.05 },
   { n: 5, elo: 1400, name: 'Intermediate', who: 'Sofia', color: '#c084fc', avatar: 'bot-05', blurb: 'Tactically alert. Punishes simple mistakes.', depth: 4, mpv: 4, T: 4, rnd: 0.02 },
   { n: 6, elo: 1600, name: 'Advanced', who: 'Marcus', color: '#60a5fa', avatar: 'bot-06', blurb: 'Calm and methodical. Rarely drops material.', depth: 6, mpv: 3, T: 2.2, rnd: 0 },
-  { n: 7, elo: 1800, name: 'Expert', who: 'Elena', color: '#fbbf24', avatar: 'bot-07', blurb: 'Punishes inaccuracies and converts small advantages.', uci: 1750, ms: 260 },
-  { n: 8, elo: 2000, name: 'Master', who: 'Daniel', color: '#4ade80', avatar: 'bot-08', blurb: 'Precise, patient, prepared. Hard to trick.', uci: 1950, ms: 330 },
-  { n: 9, elo: 2200, name: 'Candidate Master', who: 'Kai', color: '#cbd5e1', avatar: 'bot-09', blurb: 'Sharp calculation and deep preparation.', uci: 2200, ms: 450 },
-  { n: 10, elo: 2600, name: 'Grandmaster', who: 'Viktor', color: '#f5c451', avatar: 'bot-10', blurb: 'Plays like a grandmaster: relentless and almost flawless.', uci: 2600, ms: 700 },
+  { n: 7, elo: 1800, name: 'Expert', who: 'Elena', color: '#fbbf24', avatar: 'bot-07', blurb: 'Punishes inaccuracies and converts small advantages.', uci: 1750, ms: 420 },
+  { n: 8, elo: 2000, name: 'Master', who: 'Daniel', color: '#4ade80', avatar: 'bot-08', blurb: 'Precise, patient, prepared. Hard to trick.', uci: 1950, ms: 560 },
+  { n: 9, elo: 2200, name: 'Candidate Master', who: 'Kai', color: '#cbd5e1', avatar: 'bot-09', blurb: 'Sharp calculation and deep preparation.', uci: 2200, ms: 800 },
+  { n: 10, elo: 2600, name: 'Grandmaster', who: 'Viktor', color: '#f5c451', avatar: 'bot-10', blurb: 'Plays like a grandmaster: relentless and almost flawless.', uci: 2600, ms: 1200 },
 ];
 
 export const levelByN = (n) => LEVELS[Math.max(1, Math.min(10, n)) - 1];

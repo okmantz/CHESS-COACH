@@ -15,12 +15,13 @@ const NAV = [
 ];
 const SIDE_EXTRA = [
   { id: 'home', label: 'Home', icon: 'home', hash: '#/' },
+  { id: 'path', label: 'My path', icon: 'target', hash: '#/path' },
   { id: 'games', label: 'My games', icon: 'list', hash: '#/games' },
   { id: 'profile', label: 'Profile', icon: 'user', hash: '#/profile' },
 ];
 const ROUTES = [
   [/^\/?$/, 'home'], [/^\/play$/, 'play'], [/^\/analyze$/, 'analyze'], [/^\/learn(?:\/([a-z]+))?(?:\/([\w-]+))?$/, 'learn'],
-  [/^\/train(?:\/([a-z]+))?$/, 'train'], [/^\/coach$/, 'coach'], [/^\/coach-play$/, 'coachplay'], [/^\/two-player$/, 'twoplayer'], [/^\/games$/, 'games'], [/^\/profile$/, 'profile'],
+  [/^\/train(?:\/([a-z]+))?$/, 'train'], [/^\/coach$/, 'coach'], [/^\/coach-play$/, 'coachplay'], [/^\/two-player$/, 'twoplayer'], [/^\/games$/, 'games'], [/^\/profile$/, 'profile'], [/^\/path$/, 'path'],
 ];
 
 export const app = { deferredInstall: null, installed: matchMedia('(display-mode: standalone)').matches || navigator.standalone };
@@ -69,7 +70,7 @@ function refreshChrome() {
 }
 
 function setActive(page) {
-  const map = { home: 'home', play: 'play', analyze: 'analyze', learn: 'learn', train: 'train', coach: 'coach', coachplay: 'play', games: 'games', profile: 'profile' };
+  const map = { home: 'home', play: 'play', analyze: 'analyze', learn: 'learn', train: 'train', coach: 'coach', coachplay: 'play', games: 'games', profile: 'profile', path: 'path' };
   document.querySelectorAll('.nav-item').forEach((n) => n.classList.toggle('active', n.dataset.id === map[page]));
 }
 

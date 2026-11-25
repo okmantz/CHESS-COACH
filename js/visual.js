@@ -2,6 +2,7 @@
 // (arrows, rings) and into plain-English "why" explanations built from what the move really does and what the
 // engine's line says. Used by Analyze (review + live board), Play-with-Coach, Play and the two-player mode.
 import { Chess } from '../vendor/chess.js';
+import { moveIdeas } from './ideas.js';
 import { moveInsight, narrateInsight, threatsAgainst } from './insight.js';
 import { VAL, NAMES, boardMap, phaseOf, findKing } from './themes.js';
 import { parsePv } from './pvutil.js';
@@ -226,8 +227,14 @@ export function whyMove({ fen, uci, pv = null, lines = [], idx = 0, rootColor = 
 
   // 1) what the move does on the board
   const doing = narrateInsight(ins, { phase: ph, max: 3 });
-  const headline = doing[0] || '';
+  // the generic fallback sentence ("It improves the knight...") is replaced by the real positional point when we can name one
+  const generic = (t) => /^(It improves the|A pawn move: it gains space|A king move)/.test(t || '');
+  let ideasHere = [];
+  try { ideasHere = idx === 0 || mover === root ? moveIdeas(fen, uci, { max: 3 }).filter((x) => x.weight >= 3) : []; } catch (e) { ideasHere = []; }
+  const headline = (generic(doing[0]) && ideasHere.length ? ideasHere[0].text : doing[0]) || '';
+  const skip = generic(doing[0]) && ideasHere.length ? 1 : 0;
   doing.slice(1).forEach((t) => points.push({ kind: 'idea', text: t }));
+  ideasHere.slice(skip).forEach((x) => { if (!points.some((p) => p.text === x.text)) points.push({ kind: 'plan', text: x.text, squares: x.squares }); });
 
   // 2) engine verdict and comparison with the alternatives (only for the first move of a line, where `lines` is the root list)
   let label = { text: mine ? 'Follow-up' : 'Likely reply', tone: 'info' };

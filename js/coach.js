@@ -5,6 +5,7 @@ import { Chess } from '../vendor/chess.js';
 import { moveFeatures, playLine, VAL, NAMES, kingInfo, phaseOf, nonPawnMaterial, material, boardMap } from './themes.js';
 import { fmtEval, povWin, CLASSES } from './evalmath.js';
 import { moveInsight, narrateInsight, positionFacts, hangingPieces, threatsAgainst } from './insight.js';
+import { moveIdeas, planFor } from './ideas.js';
 
 /* ------------------------------------------------------------------ taxonomy */
 
@@ -244,12 +245,28 @@ const SEVERITY = { inaccuracy: 'An inaccuracy — a small slip', mistake: 'A mis
 
 const pawnsText = (n) => `${Math.abs(n).toFixed(1)} pawn${Math.abs(n) === 1 ? '' : 's'}`;
 
+const GENERIC = /^(It improves the|A pawn move: it gains space|A king move)/;
+/** The positional point of a move (outpost, worst piece, open file, break, weak pawn…), strongest first. */
+function positional(fen, uci, max = 2) {
+  try { return moveIdeas(fen, uci, { max }).filter((x) => x.weight >= 3).map((x) => x.text); } catch (e) { return []; }
+}
+/** "Next idea" for the side that just moved: the first thing the plan finder would suggest in the resulting position. */
+export function nextIdeaLine(fen, color) {
+  try {
+    const p = planFor(fen, color, { max: 3 }).find((x) => x.id !== 'safety' && x.id !== 'improve' && x.id !== 'trade-down' && x.id !== 'keep-tension');
+    return p ? `${p.title}. ${p.how}` : '';
+  } catch (e) { return ''; }
+}
+
 /** One-line description of a best move, built from what it actually does. */
 function describeBest(fen, uci, phase) {
   try {
     const ins = moveInsight(fen, uci);
     if (!ins) return { desc: '', sentences: [] };
-    return { desc: describeMove(ins.feats, ins.san), sentences: narrateInsight(ins, { phase, max: 3 }), ins };
+    let sentences = narrateInsight(ins, { phase, max: 3 });
+    const pos = positional(fen, uci, 2);
+    if (pos.length && (GENERIC.test(sentences[0]) || sentences.length < 2)) sentences = [...pos, ...sentences.filter((x) => !GENERIC.test(x))].slice(0, 3);
+    return { desc: describeMove(ins.feats, ins.san), sentences, ins };
   } catch (e) { return { desc: '', sentences: [] }; }
 }
 
@@ -372,7 +389,9 @@ export function explainMove(m, ctx = {}) {
     what = `The position was already difficult (${fmtPov(pb)}), and ${m.san} made it worse (${fmtPov(pa)}). ${bestSan ? `${bestSan} ${bestDesc || 'was the toughest defense'}.` : ''}`;
   } else {
     primary = 'positional';
-    what = `${m.san} gives up ${pawnsText(swing || 0)} of evaluation compared with ${bestSan || 'the best move'}${bestDesc ? `, which ${bestDesc}` : ''}. ${best && (best.themes.includes('capture') || best.themes.includes('check')) && !played.themes.includes('capture') ? 'A forcing move was available.' : 'The engine\'s choice is more active or more accurate.'}`;
+    const bestPoint = bestSan ? positional(m.fenBefore, m.best, 1)[0] : '';
+    const playedPoint = positional(m.fenBefore, m.uci, 1)[0];
+    what = `${m.san} gives up ${pawnsText(swing || 0)} of evaluation compared with ${bestSan || 'the best move'}.${bestPoint ? ` The point of ${bestSan}: ${bestPoint}` : best && (best.themes.includes('capture') || best.themes.includes('check')) && !played.themes.includes('capture') ? ' A forcing move was available.' : ` ${bestSan ? bestSan + ' is' : 'The engine\'s choice is'} more active or more accurate.`}${playedPoint ? ` (${m.san} does ${playedPoint.charAt(0).toLowerCase() + playedPoint.slice(1).replace(/\.$/, '')}, but it is worth less than that.)` : ''}`;
   }
 
   tags.push(primary);
@@ -398,6 +417,9 @@ export function explainMove(m, ctx = {}) {
   const loose = hangingPieces(m.fenAfter, color).filter((x) => x.type !== 'p');
   if (loose.length) consider.unshift(`Blunder check: after ${m.san}, your ${loose.slice(0, 2).map((x) => `${pn(x.type)} on ${x.square}`).join(' and ')} could be captured. Spotting that before you move is the habit to build.`);
   if (m.phase === 'opening' && primary !== 'opening-principles') consider.push(phaseAdvice(m.fenAfter, color, 'opening'));
+  if (m.phase !== 'opening' && ['positional', 'conversion', 'defense', 'endgame-technique'].includes(primary)) {
+    try { const pl = planFor(m.fenBefore, color, { max: 2 }).filter((x) => x.id !== 'improve'); if (pl.length) consider.unshift(`Plan check — before moving, the position was asking: “${pl[0].title}.” ${pl[0].how}`); } catch (e) { /* ignore */ }
+  }
 
   return {
     kind: 'mistake', title: moveLabel, evalText, headline: `${SEVERITY[m.cls] || 'A mistake'}`, what, why, idea, consider,
@@ -415,7 +437,8 @@ export function explainGood(m, ctx = {}) {
   const pb = povEval(m.evalBefore, color), pa = povEval(m.evalPlayed || m.evalAfter, color);
   let ins = null;
   try { ins = moveInsight(m.fenBefore, m.uci); } catch (e) { ins = null; }
-  const sentences = ins ? narrateInsight(ins, { phase: m.phase, max: 3 }) : [];
+  let sentences = ins ? narrateInsight(ins, { phase: m.phase, max: 3 }) : [];
+  { const pos = positional(m.fenBefore, m.uci, 2); if (pos.length && (!sentences.length || GENERIC.test(sentences[0]) || sentences.length < 2)) sentences = [...pos, ...sentences.filter((x) => !GENERIC.test(x))].slice(0, 3); }
   const evalText = `${fmtPov(pb)} → ${fmtPov(pa)}`;
   const label = (CLASSES[m.cls] || {}).label || 'Good';
   const bestSan = m.bestSan || (m.best ? sanOf(m.fenBefore, m.best) : null);
@@ -446,6 +469,7 @@ export function explainGood(m, ctx = {}) {
   }
   const adv = phaseAdvice(m.fenAfter, color, m.phase);
   if (adv && m.phase !== 'middlegame' && !positive) extra.push(adv);
+  if (m.phase !== 'opening' && m.cls !== 'book') { const ni = nextIdeaLine(m.fenAfter, color); if (ni) extra.push(`Next idea for you: ${ni}`); }
   return { kind: positive ? 'positive' : 'good', title: moveLabel, headline, evalText, what, why: [], idea: '', extra, consider: [], tags: [], themes: ins ? ins.themes : [], recommendation: null, bestSan, bestLineSan };
 }
 

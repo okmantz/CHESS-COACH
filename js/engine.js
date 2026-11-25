@@ -72,7 +72,7 @@ export class Engine {
     if (this.ready) return this;
     this.t.post('uci');
     await this._wait('uciok');
-    this.t.post('setoption name Hash value 32');
+    this.t.post('setoption name Hash value 64');
     this.t.post('isready');
     await this._wait('readyok');
     this.ready = true;

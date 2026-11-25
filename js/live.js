@@ -22,6 +22,8 @@ import { stopEngine } from './engine-host.js';
 
 const FILES = 'abcdefgh';
 const MAX_DEPTH = 22;
+/** Engine lines shallower than this are rough guesses (they change a lot while the search deepens), so they are not shown as advice. */
+const MIN_SHOW = 11;
 const NOTABLE = ['brilliant', 'great', 'inaccuracy', 'mistake', 'blunder'];
 const PIECE_ORDER = ['k', 'q', 'r', 'b', 'n', 'p'];
 
@@ -287,7 +289,7 @@ export function liveBoard(view, ctx, { fen = null, setup = false, back = null } 
       const out = arr.slice(0, nLines).map((x) => ({ white: x.white || toWhite(x, turn), ev: x.white || toWhite(x, turn), pv: x.pv, depth: x.depth }));
       cache.set(f, { lines: arr.map((x) => ({ white: x.white || toWhite(x, turn), pv: x.pv, depth: x.depth })), depth: d });
       if (cache.size > 80) cache.delete(cache.keys().next().value);
-      if (!final && d < 6) return;
+      if (!final && d < MIN_SHOW) return;
       lines = out; depth = d;
       setEval(lines[0].ev);
       renderBanner(); syncPanel(); paint();
@@ -321,10 +323,10 @@ export function liveBoard(view, ctx, { fen = null, setup = false, back = null } 
       if (my !== judgeToken || !alive) return;
       const before = rec.fenBefore;
       const hit = cache.get(before);
-      let src = hit && hit.depth >= 10 ? hit.lines : null;
-      if (!src && engineSafe(before)) src = (await searchPosition(engine, before, { depth: 12, movetime: 900 })).lines;
+      let src = hit && hit.depth >= 14 ? hit.lines : null;
+      if (!src && engineSafe(before)) src = (await searchPosition(engine, before, { depth: 14, movetime: 1700 })).lines;
       if (my !== judgeToken || !alive) return;
-      const j = await judgeMove(engine, before, rec.uci, { lines: src, depth: 12, movetime: 900, verify: false });
+      const j = await judgeMove(engine, before, rec.uci, { lines: src, depth: 14, movetime: 1700, verify: true });
       if (my !== judgeToken || !alive) return;
       rec.cls = j.cls;
       const fenAfter = rec.fen;
