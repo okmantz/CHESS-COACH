@@ -1,0 +1,39 @@
+/* Guided experience: next step, path, debrief, gym, opening hub/explorer, thumbnails */
+.eyebrow{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:4px}
+.m0{margin:0}.mb-s{margin-bottom:8px}.mt-s{margin-top:6px}
+.next-step{border:1px solid var(--accent);background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 12%,var(--card,#fff)),var(--card,#fff));margin-bottom:16px}
+.next-step .row{gap:10px;flex-wrap:wrap;margin-top:6px}
+.phase-meters{display:flex;flex-direction:column;gap:8px}
+.phase-row{display:grid;grid-template-columns:92px 1fr 44px;gap:8px;align-items:center;font-size:14px}
+.phase-bar{height:10px;border-radius:6px;background:color-mix(in srgb,currentColor 12%,transparent);overflow:hidden;position:relative}
+.phase-fill{display:block;height:100%;border-radius:6px;background:var(--accent)}.phase-fill.good{background:var(--good,#3a9a5b)}.phase-fill.mid{background:var(--warn,#d9a21b)}.phase-fill.bad{background:var(--bad,#cf4b43)}
+.phase-empty{font-size:11px;opacity:.6;padding-left:6px}.phase-val{text-align:right;font-weight:600}
+.path-openings{display:grid;gap:12px}.path-opening{display:flex;gap:12px;align-items:center;text-decoration:none;color:inherit}
+.roadmap{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.road-step{display:flex;gap:10px;align-items:center;padding:10px;border-radius:10px;text-decoration:none;color:inherit;border:1px solid transparent}
+.roadmap li.current .road-step{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
+.roadmap li.done .road-step{opacity:.65}
+.road-dot{width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:color-mix(in srgb,currentColor 14%,transparent);font-size:13px;font-weight:700;flex:none}
+.roadmap li.done .road-dot{background:var(--good,#3a9a5b);color:#fff}
+.debrief{text-align:left;margin:8px 0}.debrief-list{margin:0;padding-left:0;list-style:none;font-size:14px;display:flex;flex-direction:column;gap:6px}.debrief-list li{display:flex;gap:8px;align-items:flex-start}
+.debrief-acc{text-align:center;padding-right:10px;min-width:70px}
+.progress{height:6px;border-radius:4px;background:color-mix(in srgb,currentColor 14%,transparent);overflow:hidden;margin:8px 0}.progress span{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+.mg-hero{margin-bottom:16px;border:1px solid var(--accent)}
+.gym-main{display:grid;grid-template-columns:minmax(260px,480px) 1fr;gap:16px;align-items:start}
+@media(max-width:760px){.gym-main{grid-template-columns:1fr}}
+.gym-steps{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.gym-step{font-size:12px;padding:4px 10px;border-radius:999px;background:color-mix(in srgb,currentColor 10%,transparent)}
+.gym-step.now{background:var(--accent);color:#fff}.gym-step.done{opacity:.55}
+.gym-q{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.gym-opts{display:flex;flex-direction:column;gap:8px}
+.gym-opt{text-align:left;white-space:normal}.gym-opt.ok{outline:2px solid var(--good,#3a9a5b)}.gym-opt.no{outline:2px solid var(--bad,#cf4b43)}.gym-opt.dim{opacity:.5}
+.gym-fb{padding:10px 12px;border-radius:10px;margin-bottom:8px;border-left:4px solid}.gym-fb.ok{border-color:var(--good,#3a9a5b);background:color-mix(in srgb,var(--good,#3a9a5b) 10%,transparent)}.gym-fb.no{border-color:var(--bad,#cf4b43);background:color-mix(in srgb,var(--bad,#cf4b43) 10%,transparent)}
+.mini-board{display:block;aspect-ratio:1;flex:none;width:var(--mb,100%)}
+.opening-card{display:flex;gap:12px}.opening-card .thumb{flex:none;width:110px}
+.filters{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}.chip-row{display:flex;gap:6px;flex-wrap:wrap}
+.xp-main{display:grid;grid-template-columns:minmax(260px,480px) 1fr;gap:16px;align-items:start}
+@media(max-width:760px){.xp-main{grid-template-columns:1fr}}
+.xp-list{display:flex;flex-direction:column;gap:6px}.xp-row{display:flex;gap:8px;align-items:center;padding:8px 10px;border-radius:10px;border:1px solid color-mix(in srgb,currentColor 14%,transparent);cursor:pointer}
+.xp-chip,.xp-badges span{font-size:11px;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,currentColor 10%,transparent)}
+.xp-san{font-weight:700}.xp-eval{margin-left:auto;font-variant-numeric:tabular-nums;font-size:12px}
+.xp-name{font-weight:700}.xp-crumb{font-size:12px;opacity:.7}

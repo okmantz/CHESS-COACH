@@ -122,3 +122,6 @@ html[data-reduce-motion="true"] .arrow-layer .arrow-path, html[data-reduce-motio
 
 .avatar-dot { width: 38px; height: 38px; border-radius: 50%; border: 2px solid var(--border); flex: none; }
 .avatar-dot.w { background: #f4f4f4; } .avatar-dot.b { background: #26282e; }
+
+.why-points li.k-plan .icon { color: var(--good); }
+.why-points li.k-plan { background: color-mix(in srgb, var(--good) 8%, transparent); border-radius: 8px; padding: 4px 6px; margin: 0 -6px; }
