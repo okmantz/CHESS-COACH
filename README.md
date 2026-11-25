@@ -28,6 +28,14 @@ Ten opponents, each with a face, a personality and speech bubbles (`js/bot.js`, 
 
 Profile has 17 portrait avatars (`assets/avatars/*.webp`, replace with higher-resolution files of the same name any time), 12 emblems, photo upload, 16 board themes, 7 piece sets (`assets/pieces/<set>`, regenerate with `node scripts/gen-piece-sets.mjs`), highlight colours, move-hint style, board frame, theme (dark / black / light), text size, reduce motion and a bot chat toggle. All of it lives in `js/skins.js`.
 
+## Guided path (new)
+
+- **My path** (`#/path`, also a card on Home and Coach) reads your reviewed games, finds your weakest phase and gives one next step: play, review, learn a specific opening, middlegame Fast-Track, endgame or tactics.
+- **Post-game debrief**: after each game the coach quietly reviews it (quick depth) and shows accuracy per phase, your first opening slip, your biggest mistake with the reason, and the next step.
+- **Openings**: filter by White/Black/both, level and sort; every course has a board picture of its setup; the **Explorer** lets you wander any variation (course, book and engine moves, each explained) and **Quiz me** steers into random lines.
+- **Middlegame Fast-Track**: six short lessons built on a 3-question method (what changed, worst piece, pawn-structure plan), plus the **Middlegame Gym** (tap the worst piece, pick the plan, play the engine-judged move).
+- **Explanations**: `js/ideas.js` is a geometric positional engine (outposts, pawn structure, worst piece, breaks, king safety) behind every "why" and "next idea". Engine lines are shown only from depth 11 and moves are judged inside one search with a deeper verify pass.
+
 ## Learn
 
 On phones the Learn section has a section switcher, search across every lesson/opening/term, a "pick up where you left off" card, tiles with progress, filters on the openings list, a pinned board with a thumb-reach Back / Continue bar in every lesson, and Analyze keeps the board pinned with a one-line move banner (swipe the coach panel to step through the game). Lessons resume at the step you stopped on.
