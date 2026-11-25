@@ -2,14 +2,30 @@
 import { h, icon } from './ui.js';
 import { journey, phaseLabel } from './journey.js';
 
+/** The journey in six milestones: each is done when every road step in it is done; the first unfinished one is "now". */
+const MILESTONES = [
+  ['Play', (r) => r.id === 'play'], ['Review', (r) => r.id === 'review'], ['Openings', (r) => r.id === 'rep'],
+  ['Middlegame', (r) => r.group === 'middlegame' || r.id === 'gym'], ['Endgames', (r) => r.id === 'endgames'], ['Climb', (r) => r.id === 'coach-play'],
+];
+export function milestones(j) {
+  const out = MILESTONES.map(([label, test]) => { const rs = j.roadmap.filter(test); return { label, done: rs.length > 0 && rs.every((r) => r.done) }; });
+  const now = out.findIndex((m) => !m.done);
+  out.forEach((m, i) => { m.now = i === now; });
+  return { items: out, now };
+}
+
 export function nextStepCard(j = null, { compact = false } = {}) {
   j = j || journey();
   const n = j.next;
-  return h('div.card.next-step', h('div.eyebrow', 'Your next step'),
-    h('h3.m0', n.title),
-    h('div.small.muted.mb-s', j.headline),
+  const ms = milestones(j);
+  const label = ms.now >= 0 ? `Step ${ms.now + 1} of ${ms.items.length} · ${ms.items[ms.now].label}` : 'Journey complete';
+  return h('div.card.next-step',
+    h('div.ns-track', ...ms.items.map((m) => h('i', { class: m.done ? 'done' : m.now ? 'now' : '', title: m.label })), h('span.ns-track-label', label)),
+    h('div.eyebrow', 'Your next step'),
+    h('h3', n.title),
+    h('div.ns-headline', j.headline),
     compact ? null : h('p', n.why),
-    h('div.row', h('a.btn.primary.big', { href: n.cta.href }, n.cta.label, icon('right', 16)), h('a.btn.ghost', { href: '#/path' }, 'See my full path')));
+    h('div.ns-actions', h('a.btn.primary.big', { href: n.cta.href }, n.cta.label, icon('right', 16)), h('a.btn.ghost', { href: '#/path' }, 'My full path')));
 }
 
 export function phaseMeters(profile) {

@@ -1,39 +1,120 @@
-/* Guided experience: next step, path, debrief, gym, opening hub/explorer, thumbnails */
-.eyebrow{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:4px}
-.m0{margin:0}.mb-s{margin-bottom:8px}.mt-s{margin-top:6px}
-.next-step{border:1px solid var(--accent);background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 12%,var(--card,#fff)),var(--card,#fff));margin-bottom:16px}
-.next-step .row{gap:10px;flex-wrap:wrap;margin-top:6px}
-.phase-meters{display:flex;flex-direction:column;gap:8px}
-.phase-row{display:grid;grid-template-columns:92px 1fr 44px;gap:8px;align-items:center;font-size:14px}
-.phase-bar{height:10px;border-radius:6px;background:color-mix(in srgb,currentColor 12%,transparent);overflow:hidden;position:relative}
-.phase-fill{display:block;height:100%;border-radius:6px;background:var(--accent)}.phase-fill.good{background:var(--good,#3a9a5b)}.phase-fill.mid{background:var(--warn,#d9a21b)}.phase-fill.bad{background:var(--bad,#cf4b43)}
-.phase-empty{font-size:11px;opacity:.6;padding-left:6px}.phase-val{text-align:right;font-weight:600}
-.path-openings{display:grid;gap:12px}.path-opening{display:flex;gap:12px;align-items:center;text-decoration:none;color:inherit}
-.roadmap{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
-.road-step{display:flex;gap:10px;align-items:center;padding:10px;border-radius:10px;text-decoration:none;color:inherit;border:1px solid transparent}
-.roadmap li.current .road-step{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
-.roadmap li.done .road-step{opacity:.65}
-.road-dot{width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:color-mix(in srgb,currentColor 14%,transparent);font-size:13px;font-weight:700;flex:none}
-.roadmap li.done .road-dot{background:var(--good,#3a9a5b);color:#fff}
-.debrief{text-align:left;margin:8px 0}.debrief-list{margin:0;padding-left:0;list-style:none;font-size:14px;display:flex;flex-direction:column;gap:6px}.debrief-list li{display:flex;gap:8px;align-items:flex-start}
-.debrief-acc{text-align:center;padding-right:10px;min-width:70px}
-.progress{height:6px;border-radius:4px;background:color-mix(in srgb,currentColor 14%,transparent);overflow:hidden;margin:8px 0}.progress span{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
-.mg-hero{margin-bottom:16px;border:1px solid var(--accent)}
-.gym-main{display:grid;grid-template-columns:minmax(260px,480px) 1fr;gap:16px;align-items:start}
-@media(max-width:760px){.gym-main{grid-template-columns:1fr}}
-.gym-steps{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
-.gym-step{font-size:12px;padding:4px 10px;border-radius:999px;background:color-mix(in srgb,currentColor 10%,transparent)}
-.gym-step.now{background:var(--accent);color:#fff}.gym-step.done{opacity:.55}
-.gym-q{display:flex;gap:8px;align-items:center;margin-bottom:6px}
-.gym-opts{display:flex;flex-direction:column;gap:8px}
-.gym-opt{text-align:left;white-space:normal}.gym-opt.ok{outline:2px solid var(--good,#3a9a5b)}.gym-opt.no{outline:2px solid var(--bad,#cf4b43)}.gym-opt.dim{opacity:.5}
-.gym-fb{padding:10px 12px;border-radius:10px;margin-bottom:8px;border-left:4px solid}.gym-fb.ok{border-color:var(--good,#3a9a5b);background:color-mix(in srgb,var(--good,#3a9a5b) 10%,transparent)}.gym-fb.no{border-color:var(--bad,#cf4b43);background:color-mix(in srgb,var(--bad,#cf4b43) 10%,transparent)}
-.mini-board{display:block;aspect-ratio:1;flex:none;width:var(--mb,100%)}
-.opening-card{display:flex;gap:12px}.opening-card .thumb{flex:none;width:110px}
-.filters{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}.chip-row{display:flex;gap:6px;flex-wrap:wrap}
-.xp-main{display:grid;grid-template-columns:minmax(260px,480px) 1fr;gap:16px;align-items:start}
-@media(max-width:760px){.xp-main{grid-template-columns:1fr}}
-.xp-list{display:flex;flex-direction:column;gap:6px}.xp-row{display:flex;gap:8px;align-items:center;padding:8px 10px;border-radius:10px;border:1px solid color-mix(in srgb,currentColor 14%,transparent);cursor:pointer}
-.xp-chip,.xp-badges span{font-size:11px;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,currentColor 10%,transparent)}
-.xp-san{font-weight:700}.xp-eval{margin-left:auto;font-variant-numeric:tabular-nums;font-size:12px}
-.xp-name{font-weight:700}.xp-crumb{font-size:12px;opacity:.7}
+/* Guided experience: next step, path, debrief, gym, opening hub/explorer, thumbnails.
+   Everything here uses the app's design tokens (--surface, --accent, --border …) so it follows every theme. */
+.eyebrow { font-size: .7rem; letter-spacing: .09em; text-transform: uppercase; color: var(--accent); font-weight: 800; margin-bottom: 4px; }
+.m0 { margin: 0; } .mb-s { margin-bottom: 8px; } .mt-s { margin-top: 6px; }
+
+/* ---------- "Your next step": the one card that tells you what to do ---------- */
+.next-step {
+  position: relative; overflow: hidden; margin-bottom: 16px; padding: 18px; border-radius: 18px;
+  background:
+    radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, var(--accent) 26%, transparent) 0%, transparent 60%),
+    linear-gradient(160deg, var(--surface-2), var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .22);
+  color: var(--text);
+}
+.next-step::after { content: "♞"; position: absolute; right: -8px; bottom: -42px; font-size: 150px; line-height: 1; opacity: .06; pointer-events: none; }
+.next-step > * { position: relative; z-index: 1; }
+.next-step h3 { font-size: 1.2rem; line-height: 1.25; margin: 2px 0 4px; color: var(--text); }
+.next-step .ns-headline { font-size: .86rem; color: var(--muted); margin-bottom: 8px; }
+.next-step p { color: var(--text); opacity: .86; line-height: 1.5; margin: 0 0 12px; }
+.next-step .ns-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+.next-step .ns-actions .btn.primary { flex: 1 1 190px; }
+.next-step .ns-actions .btn.ghost { flex: 0 0 auto; border-color: var(--border); background: color-mix(in srgb, var(--surface) 60%, transparent); color: var(--text); }
+.ns-track { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+.ns-track i { flex: 1; height: 5px; border-radius: 4px; background: var(--surface-3); }
+.ns-track i.done { background: var(--good); } .ns-track i.now { background: var(--accent); }
+.ns-track-label { font-size: .72rem; color: var(--muted); font-weight: 700; letter-spacing: .04em; white-space: nowrap; margin-left: 4px; }
+
+/* ---------- phase meters, road map ---------- */
+.phase-meters { display: flex; flex-direction: column; gap: 10px; }
+.phase-row { display: grid; grid-template-columns: 92px 1fr 44px; gap: 10px; align-items: center; font-size: .9rem; }
+.phase-name { color: var(--muted); font-weight: 650; }
+.phase-bar { height: 10px; border-radius: 6px; background: var(--surface-3); overflow: hidden; position: relative; }
+.phase-fill { display: block; height: 100%; border-radius: 6px; background: var(--accent); }
+.phase-fill.good { background: var(--good); } .phase-fill.mid { background: var(--warn); } .phase-fill.bad { background: var(--bad); }
+.phase-empty { font-size: .7rem; color: var(--faint); padding-left: 8px; line-height: 10px; }
+.phase-val { text-align: right; font-weight: 750; font-variant-numeric: tabular-nums; }
+.path-openings { display: grid; gap: 12px; }
+.path-opening { display: flex; gap: 12px; align-items: center; text-decoration: none; color: inherit; padding: 8px; border-radius: 12px; border: 1px solid var(--border-soft); background: var(--surface-2); }
+.path-opening:hover { border-color: var(--accent); }
+.roadmap { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.road-step { display: flex; gap: 10px; align-items: center; padding: 10px; border-radius: 12px; text-decoration: none; color: inherit; border: 1px solid transparent; }
+.road-step:hover { background: var(--surface-2); }
+.roadmap li.current .road-step { border-color: var(--accent); background: var(--accent-soft); }
+.roadmap li.done .road-step { opacity: .62; }
+.road-dot { width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--surface-3); font-size: .8rem; font-weight: 800; flex: none; color: var(--muted); }
+.roadmap li.current .road-dot { background: var(--accent); color: var(--accent-ink); }
+.roadmap li.done .road-dot { background: var(--good); color: #052014; }
+.debrief { text-align: left; margin: 8px 0; }
+.debrief-list { margin: 0; padding-left: 0; list-style: none; font-size: .92rem; display: flex; flex-direction: column; gap: 8px; }
+.debrief-list li { display: flex; gap: 8px; align-items: flex-start; }
+.debrief-acc { text-align: center; padding-right: 10px; min-width: 70px; }
+.progress { height: 6px; border-radius: 4px; background: var(--surface-3); overflow: hidden; margin: 8px 0; }
+.progress span { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+
+/* ---------- hero cards (middlegame fast-track, recommendations, analysis board) ---------- */
+.mg-hero, .rec-card, .live-hero {
+  margin-bottom: 16px; border-radius: 18px; padding: 18px;
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--border));
+  background: radial-gradient(110% 140% at 100% 0%, color-mix(in srgb, var(--accent) 18%, transparent) 0%, transparent 62%), linear-gradient(160deg, var(--surface-2), var(--surface));
+}
+.mg-hero h3 { font-size: 1.15rem; }
+.mg-hero .row { gap: 12px; align-items: center; flex-wrap: wrap; }
+.live-hero-top { display: flex; gap: 14px; align-items: flex-start; }
+.live-hero-top h3 { margin: 0 0 4px; font-size: 1.12rem; }
+.live-hero-top p { margin: 0; line-height: 1.5; }
+.live-hero-actions { display: flex; gap: 10px; margin-top: 14px; }
+.live-hero-actions .btn { flex: 1; }
+
+/* ---------- Middlegame Gym ---------- */
+.gym-main { display: grid; grid-template-columns: minmax(260px, 480px) 1fr; gap: 16px; align-items: start; }
+@media (max-width: 760px) { .gym-main { grid-template-columns: 1fr; } }
+.gym-steps { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.gym-step { font-size: .75rem; font-weight: 700; padding: 5px 11px; border-radius: 999px; background: var(--surface-3); color: var(--muted); }
+.gym-step.now { background: var(--accent); color: var(--accent-ink); } .gym-step.done { opacity: .6; }
+.gym-q { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+.gym-opts { display: flex; flex-direction: column; gap: 8px; }
+.gym-opt { text-align: left; white-space: normal; }
+.gym-opt.ok { outline: 2px solid var(--good); } .gym-opt.no { outline: 2px solid var(--bad); } .gym-opt.dim { opacity: .5; }
+.gym-fb { padding: 10px 12px; border-radius: 10px; margin-bottom: 8px; border-left: 4px solid; }
+.gym-fb.ok { border-color: var(--good); background: color-mix(in srgb, var(--good) 10%, transparent); }
+.gym-fb.no { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 10%, transparent); }
+
+/* ---------- Openings: board pictures, filters, explorer ---------- */
+.mini-board { display: block; aspect-ratio: 1; flex: none; width: var(--mb, 100%); border-radius: 8px; }
+a.card.opening-card.with-thumb, .opening-card.with-thumb { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 14px; align-items: start; padding: 12px; }
+.opening-card .thumb { position: relative; width: 104px; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 14px rgba(0, 0, 0, .3); }
+.opening-card .thumb .mini-board { border-radius: 0; }
+.thumb-side { position: absolute; left: 6px; bottom: 6px; padding: 2px 7px; border-radius: 6px; font-size: .62rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; border: 1px solid rgba(0, 0, 0, .25); }
+.thumb-side.w { background: #f3f3f1; color: #14161c; } .thumb-side.b { background: #1b1d24; color: #f3f3f1; border-color: rgba(255, 255, 255, .25); }
+.opening-info { min-width: 0; }
+.opening-info b { line-height: 1.25; }
+.rec-card .opening-card.with-thumb { background: var(--surface); }
+.filters { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.chip-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.chip { display: inline-flex; align-items: center; padding: 5px 12px; border-radius: 99px; background: var(--surface-3); color: var(--text); font-size: .78rem; font-weight: 700; border: 1px solid var(--border-soft); }
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+.path-opening .mini-board { border-radius: 8px; }
+
+.xp-main { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.xp-list { display: flex; flex-direction: column; gap: 8px; }
+.xp-row { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border-soft); background: var(--surface-2); }
+.xp-row.is-course { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
+.xp-meta { flex: 1; min-width: 0; }
+.xp-badges { display: flex; gap: 4px; flex-wrap: wrap; }
+.xp-chip, .xp-badges span { font-size: .7rem; padding: 2px 8px; border-radius: 999px; background: var(--surface-3); color: var(--muted); font-weight: 700; }
+.xp-chip { border: 0; cursor: pointer; } .xp-chip.on { background: var(--accent); color: var(--accent-ink); }
+.xp-san { font-weight: 800; font-size: 1rem; min-width: 54px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-3); }
+.xp-san:hover { border-color: var(--accent); }
+.xp-eval { margin-left: auto; font-variant-numeric: tabular-nums; font-size: .78rem; color: var(--muted); font-weight: 700; }
+.xp-name { font-weight: 800; font-size: 1.05rem; margin: 2px 0 6px; }
+.xp-crumb { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; padding-bottom: 4px; margin-bottom: 8px; }
+.xp-crumb::-webkit-scrollbar { display: none; }
+.xp-crumb .xp-chip { flex: none; }
+.xp-detail { margin-top: 4px; }
+.xp-title { display: flex; justify-content: space-between; align-items: baseline; margin: 6px 0; }
+.xp-plan { margin: 8px 0; }
+.xp-plan summary { font-weight: 750; cursor: pointer; margin-bottom: 6px; }
+.xp-plan ul { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+@media (max-width: 760px) { .xp-main { display: grid; grid-template-columns: auto 1fr auto auto; } .xp-main .xp-meta { grid-column: 2; } }

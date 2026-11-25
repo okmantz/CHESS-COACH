@@ -209,7 +209,7 @@ export function openingCourse(root, ctx, course, back) {
         const base = chess.fen(); const after = new Chess(base); after.move(mv.san);
         if (!engineSafe(base) || !engineSafe(after.fen())) return;
         // one search for both moves: the move played and the engine's best are compared inside the same search
-        const j = await judgeMove(e, base, uciOf(mv), { depth: 14, movetime: 1500, verify: true });
+        const j = await judgeMove(e, base, uciOf(mv), { depth: 15, movetime: 2000, verify: true });
         if (!alive) return;
         const loss = j.loss, ev = fmtEval(j.playedEval);
         const why = positionalWhy(base, j.best);

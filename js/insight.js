@@ -120,14 +120,19 @@ export function moveInsight(fen, uci) {
     ins.safe = lost <= 0;
   }
 
-  // file / rank effects
+  // file / rank effects: only a piece that ARRIVES on a file or rank "takes" it (a rook sliding along its own open file does not)
   if (piece === 'r' || piece === 'q') {
     const file = to[0];
     const pawnsOnFile = Object.keys(mapA).filter((s) => s[0] === file && mapA[s].type === 'p');
-    ins.openFile = pawnsOnFile.length === 0 ? file : null;
-    ins.semiOpenFile = !ins.openFile && !pawnsOnFile.some((s) => mapA[s].color === mover) ? file : null;
-    ins.seventh = rankOf(to) === (mover === 'w' ? 6 : 1);
+    const arrives = from[0] !== to[0];
+    ins.openFile = arrives && pawnsOnFile.length === 0 ? file : null;
+    ins.semiOpenFile = arrives && !ins.openFile && pawnsOnFile.length > 0 && !pawnsOnFile.some((s) => mapA[s].color === mover) ? file : null;
+    ins.seventh = rankOf(to) === (mover === 'w' ? 6 : 1) && rankOf(from) !== rankOf(to);
   }
+  // which pieces could a pawn move open lines for? (so the coach never talks about bishops and queens that are not there)
+  ins.hasBishop = Object.values(mapA).some((p) => p.color === mover && p.type === 'b');
+  ins.hasQueen = Object.values(mapA).some((p) => p.color === mover && p.type === 'q');
+  ins.pawnEnding = Object.values(mapA).every((p) => p.type === 'k' || p.type === 'p');
   const pf0 = positionFacts(before, mover), pf1 = positionFacts(after, mover);
   ins.connectsRooks = pf1.rooksConnected && !pf0.rooksConnected;
   ins.developedBefore = pf0.developed; ins.developedAfter = pf1.developed;
@@ -157,8 +162,10 @@ export function narrateInsight(ins, { phase = 'middlegame', max = 4 } = {}) {
     out.push(`It captures the ${nm(ins.captured)} on ${ins.to}${free ? ', which was not protected, so it is a clean gain' : T.includes('winsExchange') ? ', winning more than it risks' : ''}.`);
   }
   if (ins.develops) out.push(`It develops the ${P}: a new piece joins the game instead of sitting on its starting square.`);
-  if (ins.centerPawn) out.push(`The pawn stakes a claim in the centre${ins.controlsCenter.length ? ` and controls ${ins.controlsCenter.join(' and ')}` : ''}, which also opens lines for the bishop and queen.`);
-  else if (ins.controlsCenter.length) out.push(`It eyes the central square${ins.controlsCenter.length > 1 ? 's' : ''} ${ins.controlsCenter.join(' and ')} — pieces that influence the centre work harder.`);
+  if (ins.centerPawn && !ins.pawnEnding) {
+    const opens = [ins.hasBishop ? 'bishop' : null, ins.hasQueen ? 'queen' : null].filter(Boolean);
+    out.push(`The pawn stakes a claim in the centre${ins.controlsCenter.length ? ` and controls ${ins.controlsCenter.join(' and ')}` : ''}${opens.length ? `, which also opens lines for your ${opens.join(' and ')}` : ''}.`);
+  } else if (ins.controlsCenter.length && !ins.pawnEnding) out.push(`It eyes the central square${ins.controlsCenter.length > 1 ? 's' : ''} ${ins.controlsCenter.join(' and ')} — pieces that influence the centre work harder.`);
   if (ins.occupiesCenter && !ins.centerPawn && ins.piece !== 'p') out.push(`The ${P} lands in the centre, where it reaches the most squares.`);
   if (T.includes('check') && !T.includes('mate')) out.push('It gives check, so the opponent must answer it right away — you keep the initiative.');
   if (T.includes('fork') && ins.feats && ins.feats.info.targets && ins.feats.info.targets.length) out.push(`It forks ${ins.feats.info.targets.map((t) => `the ${nm(t.type)} on ${t.square}`).join(' and ')} — they cannot both be saved.`);
@@ -174,11 +181,13 @@ export function narrateInsight(ins, { phase = 'middlegame', max = 4 } = {}) {
   else if (ins.semiOpenFile) out.push(`The ${P} takes the half-open ${ins.semiOpenFile}-file, pressing on the enemy pawn there.`);
   if (ins.seventh) out.push('A rook or queen on the seventh rank eats pawns and pins the enemy king to the back rank.');
   if (ins.connectsRooks) out.push('The rooks are now connected: they protect each other and can swing to any file.');
-  if (ins.defends.length && out.length < 3) { const d = ins.defends[0]; out.push(`It also protects the ${nm(d.type)} on ${d.square}.`); }
+  if (ins.defends.length && out.length < 3) { const d = ins.defends[0]; out.push(`It ${out.length ? 'also ' : ''}protects the ${nm(d.type)} on ${d.square}.`); }
   if (ins.queenOutEarly && phase === 'opening') out.push('The queen leaves home early — it can be harassed by minor pieces, so keep developing instead.');
   if (!ins.safe && !T.includes('mate') && !ins.captured) out.push(`Be careful: the ${P} can be captured on ${ins.to}.`);
   if (!out.length) {
-    if (ins.piece === 'p') out.push('A pawn move: it gains space and changes which squares and diagonals are open.');
+    if (ins.pawnEnding && ins.piece === 'p') out.push('A pawn move in a pawn ending: only pawns and kings are left, so every push changes who wins the race to queen.');
+    else if (ins.pawnEnding && ins.piece === 'k') out.push('A king move in a pawn ending: the king is the most important piece here, so where it stands decides the game.');
+    else if (ins.piece === 'p') out.push('A pawn move: it gains space and changes which squares and diagonals are open.');
     else if (ins.piece === 'k') out.push('A king move — in the endgame the king is a fighting piece, so activating it matters.');
     else out.push(`It improves the ${P}: more active squares, better coordination with the rest of the army.`);
   }

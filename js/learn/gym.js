@@ -121,7 +121,7 @@ export function gym(root, ctx, { back } = {}) {
     board.setPosition(chess.fen(), { from: m.from, to: m.to });
     panel.replaceChildren(h('div.row', h('span.spinner'), h('span.muted', 'The coach is checking your move…')));
     let j = null;
-    try { j = await judgeMove(await ctx.engine(), fen, uci, { depth: 14, movetime: 1500 }); } catch (e) { /* offline engine */ }
+    try { j = await judgeMove(await ctx.engine(), fen, uci, { depth: 15, movetime: 2000 }); } catch (e) { /* offline engine */ }
     if (!alive) return;
     const ok = !j || ['best', 'excellent', 'good', 'book'].includes(j.cls);
     if (ok) { score++; sfx('good'); } else sfx('bad');

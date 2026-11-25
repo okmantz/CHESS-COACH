@@ -345,9 +345,15 @@ export function planFor(fenOrAnalysis, color, { max = 5 } = {}) {
     const mine = Object.keys(map).filter((s) => map[s].color === color && map[s].type === 'r');
     const freeRook = mine.find((s) => !openFiles.includes(s[0]) && !semiFiles.includes(s[0]));
     const file = openFiles[0] || semiFiles[0];
+    const onFile = file && mine.find((s) => s[0] === file);
     if (file && mine.length && freeRook && !me.rooks.open.length) {
       const kind = openFiles.includes(file) ? 'open' : 'half-open';
-      add({ id: 'file', priority: 66, title: `Take the ${kind} ${file}-file with a rook`, text: `The ${file}-file has ${kind === 'open' ? 'no pawns at all' : 'no pawns of yours'}, so a rook there reaches the enemy camp. Rooks belong on open lines, not behind their own pawns.`, how: `Play R${file}1 / R${file}8 (whichever is yours) and double rooks on it later.`, squares: [file + '1', file + '8', freeRook], arrows: [{ from: freeRook, to: file + (color === 'w' ? '4' : '5') }] });
+      const dest = file + freeRook[1];
+      if (!onFile) {
+        add({ id: 'file', priority: 66, title: `Take the ${kind} ${file}-file with a rook`, text: `The ${file}-file has ${kind === 'open' ? 'no pawns at all' : 'no pawns of yours'}, so a rook there reaches the enemy camp. Rooks belong on open lines, not behind their own pawns.`, how: `Slide your rook from ${freeRook} to ${dest} and double rooks on it later.`, squares: [freeRook, dest], arrows: [{ from: freeRook, to: dest }] });
+      } else if (mine.length === 2) {
+        add({ id: 'double', priority: 66, title: `Double your rooks on the ${kind} ${file}-file`, text: `Your rook on ${onFile} already holds the ${file}-file. A second rook behind it doubles the pressure, and together they break into the enemy camp.`, how: `Bring the rook from ${freeRook} to ${dest}, behind the first one.`, squares: [onFile, freeRook, dest], arrows: [{ from: freeRook, to: dest }] });
+      }
     }
     if (me.rooks.open.length && me.rooks.count === 2 && !me.rooks.connected) add({ id: 'double', priority: 52, title: 'Double your rooks', text: 'A rook on an open file is strong; two rooks on it are crushing. Bring the other rook to the same file.', how: 'Connect your rooks, then stack them behind each other.', squares: me.rooks.open });
   }
@@ -447,6 +453,54 @@ export function moveIdeas(fen, uci, { max = 3 } = {}) {
   const add = (kind, text, squares, weight) => out.push({ kind, text, squares: squareFlash(squares), weight });
   const piece = mv.piece, to = mv.to, from = mv.from;
   const endgame = before.phase === 'endgame';
+  const pawnEnding = Object.values(after.map).every((p) => p.type === 'k' || p.type === 'p');
+
+  // pure king-and-pawn endings: the ideas are the opposition, the king leading its pawn, the passed pawn and the race
+  if (pawnEnding) {
+    const sqOf = (c, t) => Object.keys(after.map).find((q) => after.map[q].type === t && after.map[q].color === c);
+    const kMe = sqOf(color, 'k'), kThem = sqOf(e, 'k');
+    const cheb = (a, b) => Math.max(Math.abs(fOf(a) - fOf(b)), Math.abs(rOf(a) - rOf(b)));
+    const df = Math.abs(fOf(kMe) - fOf(kThem)), dr = Math.abs(rOf(kMe) - rOf(kThem));
+    const myPawns = Object.keys(after.map).filter((q) => after.map[q].type === 'p' && after.map[q].color === color);
+    const theirPawns = Object.keys(after.map).filter((q) => after.map[q].type === 'p' && after.map[q].color === e);
+    if (piece === 'k' && ((df === 2 && dr === 0) || (dr === 2 && df === 0) || (df === 2 && dr === 2))) add('opposition', 'It takes the opposition: the kings face each other with one square between, and now the opponent must step aside. The side with the opposition wins the key squares.', [to, kThem], 9);
+    const ahead = (k) => myPawns.some((q) => Math.abs(fOf(k) - fOf(q)) <= 1 && rel(color, rOf(k)) > rel(color, rOf(q)));
+    if (piece === 'k' && myPawns.length && ahead(to) && !ahead(from)) add('king-leads', 'The king gets in front of its pawn. In pawn endings the king must lead the pawn, not follow it: it clears the way and takes the squares ahead.', [to, ...myPawns.slice(0, 1)], 8.5);
+    if (piece === 'k' && theirPawns.length) {
+      const near = (k) => Math.min(...theirPawns.map((q) => cheb(k, q)));
+      if (near(to) < near(from) && near(to) <= 4) { const tgt = theirPawns.slice().sort((a, b) => cheb(to, a) - cheb(to, b))[0]; add('king-hunts', `The king heads for the enemy pawn on ${tgt}. A king that can win a pawn usually wins the whole ending.`, [to, tgt], 7.5); }
+    }
+    // key squares: with the king on one of them, the pawn queens by force (rook pawns have none)
+    const keySq = (q, c) => {
+      const f = fOf(q), r = rel(c, rOf(q)) + 1;
+      if (f === 0 || f === 7 || r < 2 || r > 7) return [];
+      const ranks = r <= 4 ? [r + 2] : r === 5 ? [6, 7] : [7, 8];
+      const out = [];
+      for (const rr of ranks) for (const ff of [f - 1, f, f + 1]) if (ff >= 0 && ff <= 7) out.push(FILES[ff] + (c === 'w' ? rr : 9 - rr));
+      return out;
+    };
+    if (piece === 'k' && myPawns.length) {
+      const mine = myPawns.map((q) => ({ q, keys: keySq(q, color) })).filter((x) => x.keys.length);
+      const onKey = mine.find((x) => x.keys.includes(to));
+      if (onKey) add('key-square', `The king reaches ${to}, a key square in front of its pawn. With the king on a key square the pawn queens by force, whoever is to move.`, [to, onKey.q], 9.5);
+      else if (mine.length) {
+        const d = (k, x) => Math.min(...x.keys.map((ks) => cheb(k, ks)));
+        const x = mine[0];
+        if (d(to, x) < d(from, x)) add('key-approach', `The king heads for the key squares in front of its pawn (${listSquares(x.keys.slice(0, 3))}). If it reaches one of them, the pawn queens by force.`, [to, ...x.keys.slice(0, 3)], 7);
+      }
+      if (myPawns.some((q) => cheb(to, q) === 1) && !myPawns.some((q) => cheb(from, q) === 1)) add('guards-pawn', 'The king stays next to its pawn to protect it: in a pawn ending a pawn that loses its king usually falls.', [to, myPawns.find((q) => cheb(to, q) === 1)], 6);
+    }
+    if (piece === 'k') {
+      let said = false;
+      for (const q of At.pawns.passed) {
+        const qs = q[0] + (e === 'w' ? '8' : '1'), dist = 7 - rel(e, rOf(q)) - (rel(e, rOf(q)) === 1 ? 1 : 0);
+        if (cheb(to, qs) <= dist && cheb(to, qs) < cheb(from, qs)) { add('square', `The king moves closer to the queening square ${qs} of the enemy passed pawn on ${q} and stays inside its square, so it can still catch the pawn.`, [to, q, qs], 8.5); said = true; break; }
+      }
+      // a quiet king move with no concrete point: name the real issue of a pawn ending, the fight for tempo and the opposition
+      if (!said && !out.some((x) => x.weight >= 6)) add('tempo', 'A waiting-style king move: in a pawn ending, who has to move can decide the game (the opposition), so the best move often just keeps the kings in the right relationship.', [to], 3);
+    }
+    if (piece === 'p' && A2.pawns.passed.includes(to)) add('push-passed', `It pushes the passed pawn: nothing can block it with a pawn, so the enemy king must run to stop it while your own king helps it along.`, [to], 8);
+  }
 
   // castling
   if (mv.flags.includes('k') || mv.flags.includes('q')) add('castle', 'Castling tucks the king behind its pawns and brings a rook to the centre — the king is far safer and the rook joins the game.', [to], 9);
@@ -464,8 +518,10 @@ export function moveIdeas(fen, uci, { max = 3 } = {}) {
       else if (gain <= -3 && !mv.captured) add('passive', `The ${nm(piece)} has fewer safe squares afterwards (${pb.safeMob} → ${pa.safeMob}); this is a trade-off made for something else on the board.`, [to], 1);
       if (piece === 'r') {
         const fs = after.side[color].pawns.fileState[to[0]];
-        if (fs === 'open') add('open-file', `The rook takes the open ${to[0]}-file: no pawns block it, so it can invade the enemy camp.`, [to], 8);
-        else if (fs === 'semi' && Bt.pawns.pawns.some((p) => p.s[0] === to[0])) add('half-open', `The rook takes the half-open ${to[0]}-file and pressures the enemy pawn on that file.`, [to], 7);
+        const arrives = from[0] !== to[0];
+        if (arrives && fs === 'open') add('open-file', `The rook takes the open ${to[0]}-file: no pawns block it, so it can invade the enemy camp.`, [to], 8);
+        else if (arrives && fs === 'semi' && Bt.pawns.pawns.some((p) => p.s[0] === to[0])) add('half-open', `The rook takes the half-open ${to[0]}-file and pressures the enemy pawn on that file.`, [to], 7);
+        else if (!arrives && (fs === 'open' || fs === 'semi') && rel(color, rOf(to)) > rel(color, rOf(from))) add('advance', `The rook stays on the ${to[0]}-file but steps forward to ${to}, putting more pressure on the enemy position.`, [from, to], 4);
         if (rel(color, rOf(to)) === 6 && rel(color, rOf(from)) !== 6) add('seventh', 'A rook on the 7th rank attacks pawns from the side and pins the king to the back rank.', [to], 7.5);
         if (A2.rooks.connected && !B.rooks.connected) add('connect', 'The rooks are now connected: they protect each other and can swing to any file.', [to], 5);
       }
@@ -488,7 +544,7 @@ export function moveIdeas(fen, uci, { max = 3 } = {}) {
       if (A2.pawns.isolated.length > B.pawns.isolated.length) add('structure-bad', 'The recapture leaves you with an isolated pawn, which is the price paid for open lines for your pieces.', A2.pawns.isolated, 2);
     }
     if (A2.pawns.passed.length > B.pawns.passed.length) add('passed', `It creates a passed pawn on ${listSquares(A2.pawns.passed.filter((s) => !B.pawns.passed.includes(s)))}: nothing in front of it can stop it by pawns, so the enemy pieces must babysit it.`, A2.pawns.passed, 8);
-    if (!cap && Math.abs(fOf(to) - 3.5) < 1.5 && rel(color, rOf(to)) >= 3 && !hitsBefore) add('space', `The pawn gains space in the centre, which gives your pieces more squares and cramps the opponent.`, [to], 4.5);
+    if (!cap && !pawnEnding && Math.abs(fOf(to) - 3.5) < 1.5 && rel(color, rOf(to)) >= 3 && !hitsBefore) add('space', `The pawn gains space in the centre, which gives your pieces more squares and cramps the opponent.`, [to], 4.5);
     if ((fOf(to) <= 1 || fOf(to) >= 6) && rel(color, rOf(to)) >= 3 && !endgame && At.king.castled && Math.abs(fOf(to) - fOf(At.king.square)) <= 2) add('storm', 'A pawn advance toward the enemy king: pawn storms rip open the shield so your pieces can attack.', [to, At.king.square], 6);
     if (!cap && (rOf(to) === (color === 'w' ? 2 : 5)) && fOf(to) >= 5 && endgame === false && B.king.castled && fOf(B.king.square) >= 6) add('luft', 'It gives the king a flight square (luft) so a back-rank check can never be decisive.', [to], 3);
   }
@@ -512,7 +568,7 @@ export function moveIdeas(fen, uci, { max = 3 } = {}) {
   if (At.king.zoneAttackers.length > Bt.king.zoneAttackers.length && At.king.zoneAttackers.length >= 2 && !endgame && (At.king.castled || before.queens > 0 && mv.color && At.king.shield < 3)) add('king-attack', `Another piece joins the attack on the enemy king: ${At.king.zoneAttackers.length} pieces now bear on the squares around it.`, [to, At.king.square], 6.5);
   // king safety of mover
   if (piece === 'k' && endgame) { const c0 = centrality(fOf(from), rOf(from)), c1 = centrality(fOf(to), rOf(to)); if (c1 > c0) add('king-active', 'In the endgame the king is a fighting piece; stepping toward the centre makes it useful.', [to], 6); }
-  if (A2.king.zoneAttackers.length < B.king.zoneAttackers.length) add('defence', 'It reduces the pressure around your own king.', [to], 5.5);
+  if (!pawnEnding && A2.king.zoneAttackers.length < B.king.zoneAttackers.length) add('defence', 'It reduces the pressure around your own king.', [to], 5.5);
   return out.sort((a, b) => b.weight - a.weight).slice(0, max);
 }
 

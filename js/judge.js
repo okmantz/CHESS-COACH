@@ -5,7 +5,7 @@
 // comparing two different positions searched to the same nominal depth. Serious verdicts are re-checked deeper.
 import { effectiveLoss, classifyLoss, povWin } from './evalmath.js';
 
-export const LIVE = { depth: 14, ms: 1700, verifyDepth: 18, verifyMs: 4000 };
+export const LIVE = { depth: 15, ms: 2000, verifyDepth: 20, verifyMs: 5000 };
 
 /** Search a position once, MultiPV 3. Returns {lines, best, e} with White-pov evaluations. */
 export async function searchPosition(engine, fen, { depth = LIVE.depth, movetime = LIVE.ms, multipv = 3 } = {}) {

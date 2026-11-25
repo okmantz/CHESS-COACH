@@ -193,7 +193,7 @@ function gameView(view, ctx, cfg, resume, back, rematch) {
     try {
       if (!engineSafe(fen)) throw new Error('bad position');
       const engine = await ctx.engine();
-      const r = await engine.go({ fen, depth: 14, multipv: 3 });
+      const r = await engine.go({ fen, depth: 15, multipv: 3 });
       if (!alive || fen !== chess.fen()) return;
       const lines = r.lines.filter((l) => l.pv && l.pv.length);
       const best = lines[0]; if (!best) throw new Error('no line');

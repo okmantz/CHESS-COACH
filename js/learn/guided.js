@@ -132,7 +132,7 @@ export function guidedLesson(root, ctx, track, lesson, back) {
       if (chess.isCheckmate()) { cls = 'best'; loss = 0; }
       else if (engineSafe(fenBefore)) {
         // same-search comparison (see judge.js): the played move and the best move are valued in one search
-        const j = await judgeMove(await ctx.engine(), fenBefore, uciOf(mv), { depth: 14, movetime: 1500 });
+        const j = await judgeMove(await ctx.engine(), fenBefore, uciOf(mv), { depth: 15, movetime: 2000 });
         if (my !== token || !alive) return true;
         cls = j.cls; loss = j.loss; bestUci = j.best;
       }

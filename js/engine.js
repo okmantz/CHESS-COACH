@@ -2,6 +2,16 @@
 // Transport-agnostic so the very same code runs in the browser (Web Worker)
 // and in Node (child process) for the offline content-generation scripts / tests.
 
+/** A bigger transposition table makes the search stronger at the same depth; scale it to what the device can spare. */
+function browserHash() {
+  try {
+    const mem = typeof navigator !== 'undefined' && navigator.deviceMemory;
+    if (mem) return mem >= 8 ? 256 : mem >= 4 ? 128 : 64;
+    const phone = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+    return phone ? 64 : 128;
+  } catch (e) { return 64; }
+}
+
 export class Engine {
   /** @param {{post:(cmd:string)=>void, terminate:()=>void, onmessage:null|((line:string)=>void)}} transport */
   constructor(transport) {
@@ -13,6 +23,7 @@ export class Engine {
     this.ready = false;
     this.name = 'Stockfish';
     this._lastOptions = {};
+    this.hash = 64;
   }
 
   static browser(path = 'engine/stockfish-19-lite-single.js') {
@@ -25,6 +36,7 @@ export class Engine {
     worker.onmessage = (e) => t.onmessage && t.onmessage(typeof e.data === 'string' ? e.data : String(e.data));
     worker.onerror = (e) => { console.error('Engine worker error', e); t.onerror && t.onerror(e); };
     const eng = new Engine(t);
+    eng.hash = browserHash();
     t.onerror = (e) => eng._fail(e);
     return eng;
   }
@@ -72,7 +84,7 @@ export class Engine {
     if (this.ready) return this;
     this.t.post('uci');
     await this._wait('uciok');
-    this.t.post('setoption name Hash value 64');
+    this.t.post(`setoption name Hash value ${this.hash || 64}`);
     this.t.post('isready');
     await this._wait('readyok');
     this.ready = true;

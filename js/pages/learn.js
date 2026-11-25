@@ -211,7 +211,7 @@ export default async function learnPage(view, ctx) {
       h('div.card.mg-hero', h('div.eyebrow', 'Fast-Track'), h('h3.m0', 'Fix your middlegame in 6 short lessons'), h('p.muted.small', 'Learn one routine: what changed, worst piece, pawn-structure plan. Then drill it on real positions.'),
         h('div.row', nextFt ? h('a.btn.primary', { href: `#/learn/middlegames/${nextFt.id}` }, ftDone ? `Continue: ${nextFt.name}` : 'Start lesson 1') : h('a.btn.primary', { href: '#/learn/middlegames/gym' }, 'Train in the Gym'), h('span.small.muted', `${ftDone}/${FASTTRACK.length} lessons`))),
       h('h3', '1. Fast-Track lessons'), h('div.grid.g2.mb', FASTTRACK.map((l, i) => row(l, `#/learn/middlegames/${l.id}`, `${i + 1}`))),
-      h('h3', '2. Middlegame Gym'), h('div.grid.g2.mb', h('a.card.click.lesson-row', { href: '#/learn/middlegames/gym' }, h('div.row.nowrapr', h('div.course-icon', '🏋️'), h('div.grow', h('b', 'Middlegame Gym'), h('div.xs.muted', 'Endless real positions: tap your worst piece, pick the plan, play the move. Engine-judged with the reason.')), h('span.tag', `${g.rounds} rounds`))))),
+      h('h3', '2. Middlegame Gym'), h('div.grid.g2.mb', h('a.card.click.lesson-row', { href: '#/learn/middlegames/gym' }, h('div.row.nowrapr', h('div.course-icon', '🏋️'), h('div.grow', h('b', 'Middlegame Gym'), h('div.xs.muted', 'Endless real positions: tap your worst piece, pick the plan, play the move. Engine-judged with the reason.')), h('span.tag', `${g.rounds} rounds`)))),
       h('h3', '3. Play it out: scenarios with the coach'), h('div.grid.g2', MIDDLEGAMES.map((e) => row(e, `#/learn/middlegames/${e.id}`))));
   }
 }

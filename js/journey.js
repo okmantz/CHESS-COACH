@@ -132,7 +132,7 @@ export function journey(state = null) {
   const stats = { games: played.length, reviewed: reviewed.length, rating, basics: basicsDone, fastTrack: fastTrackProgress(s), gym: gymStats(s) };
 
   let next, stage, headline;
-  if (!played.length) {
+  if (!played.length && !reviewed.length) {
     stage = 'start'; headline = 'Step 1 — play one game so the coach can see how you play';
     next = step('first-game', 'Play your first game', rating < 900 && basicsDone < 0.3 ? 'The coach needs a game to see where you stand. Pick the 600 or 800 opponent and just play — there is nothing to lose.' : 'The coach studies how you open, how you handle the middlegame and how you finish. One game is enough to start.', 'Play a game', '#/play');
   } else if (lastUnreviewed && reviewed.length < 3) {
@@ -161,7 +161,7 @@ export function journey(state = null) {
   /* the full road, in order, each step marked done / current / later */
   const roadmap = [];
   const add = (id, title, text, href, done, extra = {}) => roadmap.push({ id, title, text, href, done: !!done, ...extra });
-  add('play', 'Play your first game', 'The coach needs to see you play.', '#/play', played.length >= 1);
+  add('play', 'Play your first game', 'The coach needs to see you play.', '#/play', played.length >= 1 || reviewed.length >= 1);
   add('review', 'Review a game with the coach', 'Move-by-move verdicts and your biggest mistakes.', lastUnreviewed ? `#/analyze?game=${lastUnreviewed.id}` : '#/games', reviewed.length >= 1);
   add('basics', 'Learn the fundamentals', 'How the pieces work, the three golden rules, the blunder check.', '#/learn/basics', basicsDone >= 0.75, { progress: basicsDone, optional: rating >= 1000 });
   const wRep = OPENINGS.filter((c) => c.side === 'w' && openingProgress(s, c) >= 0.5).length, bRep = OPENINGS.filter((c) => c.side === 'b' && openingProgress(s, c) >= 0.5).length;

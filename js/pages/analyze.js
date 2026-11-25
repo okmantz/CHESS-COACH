@@ -59,15 +59,16 @@ export default async function analyzePage(view, ctx) {
     const library = s.games.slice(0, 6);
     const node = h('div.page',
       h('div.page-head', h('h1', 'Analyze')),
-      h('div.card.live-hero.mb', h('div.row.nowrapr', h('div.course-icon', '♟'),
-        h('div.grow', h('b', 'Analysis board'), h('div.small.muted', 'Play a game or set up any position — Stockfish analyses it live, draws its best moves as arrows and explains why each one works.')),
-        h('div.row.tight', h('a.btn.primary', { href: '#/analyze?live=1' }, icon('play', 16), 'Play'), h('a.btn', { href: '#/analyze?live=setup' }, icon('sliders', 16), 'Set up')))),
+      h('div.card.live-hero.mb',
+        h('div.live-hero-top', h('div.course-icon', '♟'),
+          h('div.grow', h('h3', 'Analysis board'), h('p.small.muted', 'Play a game or set up any position. Stockfish analyses it live, draws its best moves as arrows and explains why each one works.'))),
+        h('div.live-hero-actions', h('a.btn.primary.big', { href: '#/analyze?live=1' }, icon('play', 16), 'Play'), h('a.btn.big', { href: '#/analyze?live=setup' }, icon('sliders', 16), 'Set up'))),
       h('div.grid.g2',
         h('div.card.analysis-input', h('div.card-title', icon('upload', 18), 'Import a game'), ta,
           h('div.row', h('button.btn', { onclick: async () => { const f = await pickFile('.pgn,.txt'); if (f) ta.value = await readFile(f); } }, icon('upload', 16), 'Open .pgn file'),
             h('button.btn', { onclick: async () => { try { ta.value = await navigator.clipboard.readText(); } catch (e) { toast('Paste with Ctrl/Cmd+V instead'); } } }, icon('copy', 16), 'Paste')),
           h('div', h('label.field', 'Which side are you?'), sideSeg),
-          h('div', h('label.field', 'Analysis depth'), depthSeg, h('div.xs.muted.mt', 'Quick ≈ 20 s · Standard ≈ 1 min · Deep ≈ 3 min for a 40-move game. Serious mistakes are always double-checked at a higher depth.')),
+          h('div', h('label.field', 'Analysis depth'), depthSeg, h('div.xs.muted.mt', 'Quick ≈ 1 min · Standard ≈ 2 min · Deep ≈ 4 min for a 40-move game. Serious mistakes are always double-checked at a higher depth.')),
           h('button.btn.primary.big', { onclick: () => ta.value.trim() ? go(ta.value) : toast('Paste a game first') }, icon('search', 18), 'Analyze game')),
         h('div.card', h('div.card-title', icon('list', 18), 'From your library'),
           library.length ? h('div.col', library.map((g) => gameRow(g, () => ctx.navigate(`#/analyze?game=${g.id}`)))) : emptyState('list', 'No games yet', 'Play a game against the computer or import one to see it here.'),
@@ -498,7 +499,7 @@ function reviewScreen(view, ctx, record, toInput, setTeardown) {
         const engine = await ctx.engine();
         if (my !== liveToken || !alive || variation !== v) return;
         if (!engineSafe(base.fen()) || base.isGameOver()) { v.msg = base.isCheckmate() ? 'Checkmate.' : base.isGameOver() ? 'The game is over here.' : v.msg; v.pending = false; v.lines = []; renderCoach(); paint(); return; }
-        const r = await engine.go({ fen: base.fen(), depth: 14, movetime: 1800, multipv: 3 });
+        const r = await engine.go({ fen: base.fen(), depth: 15, movetime: 2000, multipv: 3 });
         if (my !== liveToken || !alive || variation !== v) return;
         const e = r.lines[0].white;
         v.evalNow = e;

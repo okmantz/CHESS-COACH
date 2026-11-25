@@ -197,7 +197,7 @@ export function explorer(root, ctx, course, opts) {
     try {
       const e = await ctx.engine();
       if (!alive || my !== token) return;
-      const r = await searchPosition(e, fen, { depth: 14, movetime: 1500, multipv: 3 });
+      const r = await searchPosition(e, fen, { depth: 15, movetime: 2000, multipv: 3 });
       if (!alive) return;
       cache.set(fen, r.lines);
       if (my === token && fen === chess.fen()) {
@@ -281,7 +281,7 @@ export function explorer(root, ctx, course, opts) {
     locked = true;
     say(h('div', `Checking ${mv.san} with the engine…`));
     let verdict = null;
-    try { const e = await ctx.engine(); verdict = await judgeMove(e, fen, uciOf(mv), { depth: 14, movetime: 1500, verify: true }); } catch (er) { verdict = null; }
+    try { const e = await ctx.engine(); verdict = await judgeMove(e, fen, uciOf(mv), { depth: 15, movetime: 2000, verify: true }); } catch (er) { verdict = null; }
     if (!alive) return;
     locked = false;
     if (verdict && verdict.loss <= 6) {

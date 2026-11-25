@@ -96,11 +96,11 @@ export function buildPgn({ sans, startFen = START_FEN, headers = {} }) {
 /* ---------------- the review pipeline ---------------- */
 
 /** Search depth per review level; each search also has a time cap so a long game never stalls. */
-export const DEPTHS = { quick: 12, standard: 15, deep: 19 };
-const CAPS = { 12: 700, 15: 2000, 19: 5000 };
+export const DEPTHS = { quick: 12, standard: 16, deep: 20 };
+const CAPS = { 12: 700, 16: 2600, 20: 6500 };
 const capFor = (d) => CAPS[d] || Math.round(d * 120);
 /** Bumped whenever the judging logic changes: older saved reviews are re-analysed automatically. */
-export const REVIEW_VERSION = 4;
+export const REVIEW_VERSION = 5;
 
 function terminalEval(ch) {
   if (ch.isCheckmate()) return { mate: 0, white: ch.turn() === 'w' ? -1 : 1 };

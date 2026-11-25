@@ -228,7 +228,7 @@ export function whyMove({ fen, uci, pv = null, lines = [], idx = 0, rootColor = 
   // 1) what the move does on the board
   const doing = narrateInsight(ins, { phase: ph, max: 3 });
   // the generic fallback sentence ("It improves the knight...") is replaced by the real positional point when we can name one
-  const generic = (t) => /^(It improves the|A pawn move: it gains space|A king move)/.test(t || '');
+  const generic = (t) => /^(It improves the|A pawn move|A king move|It (also )?protects the)/.test(t || '');
   let ideasHere = [];
   try { ideasHere = idx === 0 || mover === root ? moveIdeas(fen, uci, { max: 3 }).filter((x) => x.weight >= 3) : []; } catch (e) { ideasHere = []; }
   const headline = (generic(doing[0]) && ideasHere.length ? ideasHere[0].text : doing[0]) || '';

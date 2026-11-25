@@ -261,7 +261,7 @@ function mistakeRunner(root, ctx, cfg, back) {
     try {
       const e = await ctx.engine(); if (!engineSafe(probe.fen())) return { ok: false };
       // best move and the tried move are compared INSIDE ONE search (never two separate searches)
-      const j = await judgeMove(e, current.fen, uciOf(mm), { depth: 14, movetime: 1500, verify: false });
+      const j = await judgeMove(e, current.fen, uciOf(mm), { depth: 15, movetime: 2000, verify: false });
       return { ok: j.loss <= 5, san: mm.san };
     } catch (er) { return { ok: false }; }
   }

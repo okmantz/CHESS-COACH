@@ -1,5 +1,15 @@
 // Small DOM + UI helpers (no framework).
 import { avatarEl } from './avatars.js';
+// DOM's append/prepend/replaceChildren turn null/false/undefined into the literal text "null"/"false".
+// Many views pass `cond ? node : null`, so make those methods skip empty values (h() already does).
+if (typeof Element !== 'undefined' && !Element.prototype.__nullSafe) {
+  for (const m of ['append', 'prepend', 'replaceChildren']) {
+    const orig = Element.prototype[m];
+    Element.prototype[m] = function (...kids) { return orig.apply(this, kids.filter((k) => k != null && k !== false)); };
+  }
+  Element.prototype.__nullSafe = true;
+}
+
 export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 

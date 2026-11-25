@@ -292,7 +292,7 @@ function gameView(view, ctx, cfg, resume, back, rematch) {
     const engine = await ctx.engine();
     if (!hint.cache || hint.cache.fen !== chess.fen()) {
       status.textContent = 'Coach is looking…';
-      const r = await engine.go({ fen: chess.fen(), depth: 14, multipv: 1 });
+      const r = await engine.go({ fen: chess.fen(), depth: 16, multipv: 1 });
       hint.cache = { fen: chess.fen(), best: r.lines[0].pv[0] };
     }
     const hh = makeHint(chess.fen(), hint.cache.best, Math.min(3, level));

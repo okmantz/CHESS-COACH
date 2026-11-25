@@ -85,5 +85,152 @@ export const FASTTRACK = [
       { t: 'say', title: 'The 10-second decision', fen: OPP, text: '**Can I attack?** count pieces near the king and open lines.\n**Am I attacked?** check their pawn storm and open files.\n**If neither,** go back to Questions 2 and 3: improve and plan.' },
     ],
   },
+  {
+ "id": "tactics-radar",
+ "part": 2,
+ "name": "Tactics radar: spot it before they do",
+ "icon": "📡",
+ "level": "Beginner",
+ "time": "9 min",
+ "summary": "Loose pieces, forks, pins, skewers and discovered attacks in real positions.",
+ "steps": [
+  {
+   "t": "say",
+   "title": "Why middlegames are lost",
+   "fen": "r1bq1rk1/pp3ppp/2n1pn2/2bp4/8/2NP1NP1/PPP1PPBP/R1BQ1RK1 w - - 0 8",
+   "text": "Most club games are decided by one tactic, not by long plans. **Before every move ask: what is loose? what are all checks, captures and threats — mine and theirs?** The puzzles below are all real positions where one move wins material."
+  },
+  {
+   "t": "move",
+   "title": "Loose piece",
+   "fen": "r1b1kb1r/pp2qpp1/7p/8/3np3/2P1B3/PPQ2PPP/R3KB1R w KQkq - 0 12",
+   "ask": "Something is undefended. Take it, or attack it.",
+   "answer": [
+    "e3d4"
+   ],
+   "right": "Bxd4 wins material.",
+   "hint": "Look for a piece with no defender, or a move that makes two threats.",
+   "why": "A piece with no defender is free material: always check what is loose."
+  },
+  {
+   "t": "move",
+   "title": "Loose piece",
+   "fen": "1k1r3r/ppp1q3/2nbpn2/3p1B1p/3P1P2/2P5/PP1NQ1PP/R1B2RK1 b - - 1 16",
+   "ask": "Something is undefended. Take it, or attack it.",
+   "answer": [
+    "e6f5"
+   ],
+   "right": "exf5 wins material.",
+   "hint": "Look for a piece with no defender, or a move that makes two threats.",
+   "why": "A piece with no defender is free material: always check what is loose."
+  },
+  {
+   "t": "move",
+   "title": "Fork",
+   "fen": "r1bqkbnr/1p3ppp/p1n1p3/3p4/4P3/2N1B3/PPP2PPP/RN1QKB1R b KQkq - 1 7",
+   "ask": "Find the fork.",
+   "answer": [
+    "d5d4"
+   ],
+   "right": "d4 wins material.",
+   "hint": "Look for a piece with no defender, or a move that makes two threats.",
+   "why": "A fork attacks two things at once; the opponent can only save one."
+  },
+  {
+   "t": "move",
+   "title": "Fork",
+   "fen": "r1bqk2r/2p2pp1/p2b1n1p/np1Pp1N1/3P4/1B6/PPP2PPP/RNB1QRK1 w kq - 0 11",
+   "ask": "Find the fork.",
+   "answer": [
+    "d4e5"
+   ],
+   "right": "dxe5 wins material.",
+   "hint": "Look for a piece with no defender, or a move that makes two threats.",
+   "why": "A fork attacks two things at once; the opponent can only save one."
+  },
+  {
+   "t": "move",
+   "title": "Pin",
+   "fen": "rnb1kb1r/1p3pp1/2p1pn1p/p1P5/1P1qN3/2B5/P1Q1BPPP/R3K1NR b KQkq - 1 11",
+   "ask": "Win material using the pin.",
+   "answer": [
+    "d4e4"
+   ],
+   "right": "Qxe4 wins material.",
+   "hint": "Look for a piece with no defender, or a move that makes two threats.",
+   "why": "A pinned piece cannot move without exposing something more valuable, so it is easy to attack."
+  },
+  {
+   "t": "move",
+   "title": "Pin",
+   "fen": "r1Bq2k1/r4pp1/1pQ1pb1p/8/P2P4/5P2/3B1P1P/R1R3K1 b - - 0 25",
+   "ask": "Win material using the pin.",
+   "answer": [
+    "f6d4"
+   ],
+   "right": "Bxd4 wins material.",
+   "hint": "Look for a piece with no defender, or a move that makes two threats.",
+   "why": "A pinned piece cannot move without exposing something more valuable, so it is easy to attack."
+  },
+  {
+   "t": "move",
+   "title": "Skewer",
+   "fen": "6k1/p2r4/2b1N2B/2p5/6pK/P6P/6q1/4RR2 b - - 0 34",
+   "ask": "Find the skewer.",
+   "answer": [
+    "g2h3"
+   ],
+   "right": "Qxh3+ wins material.",
+   "hint": "Look for a piece with no defender, or a move that makes two threats.",
+   "why": "A skewer hits the big piece first; when it moves, you win what stands behind it."
+  },
+  {
+   "t": "move",
+   "title": "Skewer",
+   "fen": "1rb5/2q1Q2p/2k2P2/p4R2/2p1P3/8/1pPN2PP/qR1K4 w - - 1 37",
+   "ask": "Find the skewer.",
+   "answer": [
+    "f5c5"
+   ],
+   "right": "Rc5+ wins material.",
+   "hint": "Look for a piece with no defender, or a move that makes two threats.",
+   "why": "A skewer hits the big piece first; when it moves, you win what stands behind it."
+  },
+  {
+   "t": "move",
+   "title": "Discovered attack",
+   "fen": "r1bq3r/1pp3pp/2n1kn2/p1PpN3/3Q4/N1P1B3/PP3PPP/R3KR2 w Q - 3 13",
+   "ask": "Find the discovered attack.",
+   "answer": [
+    "e5c6"
+   ],
+   "right": "Nxc6 wins material.",
+   "hint": "Look for a piece with no defender, or a move that makes two threats.",
+   "why": "Moving one piece uncovers an attack from another: two threats in one move."
+  },
+  {
+   "t": "move",
+   "title": "Discovered attack",
+   "fen": "2k4r/prpn1pb1/1P1P2pp/3p4/3P4/4B2P/P4PPN/1R2R1K1 w - - 0 29",
+   "ask": "Find the discovered attack.",
+   "answer": [
+    "b6c7"
+   ],
+   "right": "bxc7 wins material.",
+   "hint": "Look for a piece with no defender, or a move that makes two threats.",
+   "why": "Moving one piece uncovers an attack from another: two threats in one move."
+  },
+  {
+   "t": "say",
+   "title": "Your blunder check",
+   "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+   "text": "**1. Loose pieces** (mine, theirs). **2. Their last move: what does it threaten?** **3. Checks, captures, threats — in that order.** Do this every move for a week and your middlegame results change. Then train it in the Gym.",
+   "cta": {
+    "label": "Open the Gym",
+    "href": "#/learn/middlegames"
+   }
+  }
+ ]
+},
 ];
 export const fastTrackById = (id) => FASTTRACK.find((x) => x.id === id);
