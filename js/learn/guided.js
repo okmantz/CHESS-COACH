@@ -43,7 +43,7 @@ export function guidedLesson(root, ctx, track, lesson, back) {
   const show = (mv, anim = true) => board.setPosition(chess.fen(), { lastMove: mv ? { from: mv.from, to: mv.to } : null, animate: anim && mv ? [{ from: mv.from, to: mv.to }] : false, check: checkSquare(chess) });
   const goalText = () => isEnd ? (lesson.goal === 'win' ? 'Goal: win this position.' : `Goal: hold the draw for ${lesson.holdMoves} moves.`) : `Play ${lesson.moves} accurate moves following the plan.`;
 
-  async function bestOf(fen, depth = 13) { const e = await ctx.engine(); if (!engineSafe(fen)) return null; const r = await e.go({ fen, depth, multipv: 1 }); return r.lines[0] ? { uci: r.lines[0].pv[0], white: r.lines[0].white, pv: r.lines[0].pv } : null; }
+  async function bestOf(fen, depth = 15) { const e = await ctx.engine(); if (!engineSafe(fen)) return null; const r = await e.go({ fen, depth, multipv: 1 }); return r.lines[0] ? { uci: r.lines[0].pv[0], white: r.lines[0].white, pv: r.lines[0].pv } : null; }
   const povOf = (white, color) => povWin(white, color);
 
   function setMode(m) {
@@ -132,7 +132,7 @@ export function guidedLesson(root, ctx, track, lesson, back) {
       if (chess.isCheckmate()) { cls = 'best'; loss = 0; }
       else if (engineSafe(fenBefore)) {
         // same-search comparison (see judge.js): the played move and the best move are valued in one search
-        const j = await judgeMove(await ctx.engine(), fenBefore, uciOf(mv), { depth: 12, movetime: 900 });
+        const j = await judgeMove(await ctx.engine(), fenBefore, uciOf(mv), { depth: 14, movetime: 1500 });
         if (my !== token || !alive) return true;
         cls = j.cls; loss = j.loss; bestUci = j.best;
       }

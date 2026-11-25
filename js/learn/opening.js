@@ -14,6 +14,10 @@ import { progress } from '../ui.js';
 import { playChip, revealBelow } from '../playout.js';
 import { moveStrip } from '../gameui.js';
 import { sansText } from '../pvutil.js';
+import { judgeMove } from '../judge.js';
+import { whyShort as positionalWhy } from '../ideas.js';
+import { sanOf } from '../coach.js';
+import { explorer } from './explorer.js';
 
 export const lineStats = (courseId, li) => (store.get().lessons.openings[courseId] || { lines: {} }).lines[li] || { n: 0, ok: 0 };
 export function courseProgress(course) {
@@ -43,7 +47,7 @@ export function openingCourse(root, ctx, course, back) {
       h('div.card.flat.mb', h('div.row.between', h('b', 'Key ideas'), h('span.xs.muted', `${Math.round(p * 100)}% learned`)), h('ul.ex-list.small', { style: { margin: '6px 0 0', paddingLeft: '18px' } }, course.ideas.map((i) => h('li', i))), h('div.mt', progress(p, { height: 6 }))));
     body.replaceChildren(course.deep ? deepGuide() : null, h('div.grid.g2',
       ...course.lines.map((l, i) => h('button.card.click', { onclick: () => { st.li = i; start('watch'); } }, h('div.row.between', h('b', l.name), mastery(i)), h('div.opening-moves', sansText(parseLine(l.moves).map((x) => x.san), 8)), h('div.xs.muted.mt-s', `${parseLine(l.moves).length} moves · ${lineStats(course.id, i).n} attempts`), h('div.row.mt.tight', h('span.chip', { onclick: (e) => { e.stopPropagation(); st.li = i; start('watch'); } }, 'Watch'), h('span.chip', { onclick: (e) => { e.stopPropagation(); st.li = i; start('practice'); } }, 'Practice'))))),
-      h('div.row.mt', h('button.btn.primary', { onclick: () => start('drill') }, icon('zap', 16), 'Drill every variation (no hints)'), h('button.btn', { onclick: () => { st.li = 0; start('practice', { choose: true }); } }, icon('sliders', 16), 'Explore variations')));
+      h('div.row.mt', h('button.btn.primary', { onclick: () => start('drill') }, icon('zap', 16), 'Drill every variation (no hints)'), h('button.btn', { onclick: () => start('explore') }, icon('sliders', 16), 'Explore variations'), h('button.btn', { onclick: () => start('explore', { quiz: true }) }, icon('target', 16), 'Quiz me')));
   }
 
   function deepGuide() {
@@ -55,6 +59,11 @@ export function openingCourse(root, ctx, course, back) {
   function start(mode, opts = {}) {
     teardown();
     st.mode = mode;
+    if (mode === 'explore') {
+      const t = explorer(root, ctx, course, { initial: opts.quiz ? 'quiz' : 'explore', back: () => { draw(); root.replaceChildren(head, body); }, setMode: (k) => start(k), practiceLine: (li) => { st.li = li; start('practice'); }, record });
+      teardown = () => { t(); document.body.classList.remove('in-learn'); };
+      return;
+    }
     const t = player(mode, opts);
     teardown = () => { t(); document.body.classList.remove('in-learn'); };
   }
@@ -78,7 +87,7 @@ export function openingCourse(root, ctx, course, back) {
     const title = h('div.row.between', h('b', mode === 'drill' ? 'Drill' : course.lines[lineIdx].name), h('span.tag.accent', mode === 'watch' ? 'Watching' : mode === 'drill' ? 'Drill' : 'Practice'));
     const stat = h('div.small.muted');
     const ctrl = h('div.row');
-    const sel = h('div.seg', [['watch', 'Watch'], ['practice', 'Practice'], ['drill', 'Drill']].map(([k, l]) => h('button', { class: k === mode ? 'active' : '', onclick: () => start(k) }, l)));
+    const sel = h('div.seg', [['watch', 'Watch'], ['practice', 'Practice'], ['drill', 'Drill'], ['explore', 'Explore']].map(([k, l]) => h('button', { class: k === mode ? 'active' : '', onclick: () => start(k) }, l)));
     const boardCol = h('div.board-col', h('div.board-box', board.el), stat);
     document.body.classList.add('in-learn');
     root.replaceChildren(h('div.row.between.learn-top', h('button.back', { onclick: () => { alive = false; draw(); root.replaceChildren(head, body); } }, icon('left', 16), course.name), sel),
@@ -199,11 +208,13 @@ export function openingCourse(root, ctx, course, back) {
         const e = await ctx.engine(); if (!alive) return;
         const base = chess.fen(); const after = new Chess(base); after.move(mv.san);
         if (!engineSafe(base) || !engineSafe(after.fen())) return;
-        const a = await e.go({ fen: base, depth: 12 }); const b = await e.go({ fen: after.fen(), depth: 12 });
+        // one search for both moves: the move played and the engine's best are compared inside the same search
+        const j = await judgeMove(e, base, uciOf(mv), { depth: 14, movetime: 1500, verify: true });
         if (!alive) return;
-        const col = chess.turn(); const pov = (l) => { const w = winPct(l.white); return col === 'w' ? w : 100 - w; };
-        const loss = pov(a.lines[0]) - pov(b.lines[0]);
-        bubble(loss <= 5 ? `For what it's worth, ${mv.san} is a sound move too (${fmtEval(b.lines[0].white)}). This course just teaches ${wantSan} to keep a consistent plan.` : loss <= 15 ? `${mv.san} is playable but gives up some of your advantage (${fmtEval(b.lines[0].white)}).` : `${mv.san} is actually a mistake here: the engine evaluates it ${fmtEval(b.lines[0].white)}.`);
+        const loss = j.loss, ev = fmtEval(j.playedEval);
+        const why = positionalWhy(base, j.best);
+        bubble(h('div', loss <= 5 ? `For what it's worth, ${mv.san} is a sound move too (${ev}). This course just teaches ${wantSan} to keep a consistent plan.` : loss <= 15 ? `${mv.san} is playable but gives up some of your advantage (${ev}).` : `${mv.san} is actually a mistake here: the engine evaluates it ${ev}.`,
+          loss > 5 && j.bestPv ? h('div.small.mt-s', `The engine's choice is ${sanOf(base, j.best)}${why ? ` — ${why}` : ''}.`) : null));
       } catch (er) { /* ignore */ }
     }
     function hint() {
@@ -267,6 +278,6 @@ export function openingCourse(root, ctx, course, back) {
 
   draw();
   root.replaceChildren(head, body);
-  if (ctx.query.start) { st.li = +ctx.query.line || 0; start(ctx.query.start); }
+  if (ctx.query.start) { st.li = +ctx.query.line || 0; if (ctx.query.start === 'quiz') start('explore', { quiz: true }); else start(ctx.query.start); }
   return () => teardown();
 }
