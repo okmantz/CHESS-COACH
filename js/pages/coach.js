@@ -5,6 +5,7 @@ import { accuracyToRating } from '../analysis.js';
 import { ensureTodayPlan, currentProfile } from '../plan.js';
 import { runTask, statBox, emptyState } from '../components.js';
 import { rankOf } from '../rating.js';
+import { nextStepCard } from '../guideui.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 function lineChart(points, { color = 'var(--accent)', height = 120, yFmt = (v) => Math.round(v), min, max } = {}) {
@@ -56,6 +57,7 @@ export default async function coachPage(view, ctx) {
 
   view.replaceChildren(h('div.page',
     h('div.page-head', h('h1', 'Coach'), h('div.grow'), h('button.btn.small', { onclick: () => { ensureTodayPlan(true); ctx.navigate('#/coach'); location.reload(); } }, icon('repeat', 14), 'Refresh plan')),
+    nextStepCard(),
     h('div.card.mb.grid.g4', statBox(Math.round(s.rating.value), 'Rating', rk.name), statBox(estRating || '—', 'Performance estimate', avgAcc != null ? `from ${recent.length} analyzed games` : 'analyze games to unlock'), statBox(avgAcc != null ? avgAcc.toFixed(0) + '%' : '—', 'Avg accuracy'), statBox(s.puzzles.rating, 'Puzzle rating')),
     h('div.grid.g2.mb',
       h('div.card', h('div.card-title', icon('target', 18), "Your plan for today"),

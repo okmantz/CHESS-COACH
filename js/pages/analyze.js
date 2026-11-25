@@ -498,7 +498,7 @@ function reviewScreen(view, ctx, record, toInput, setTeardown) {
         const engine = await ctx.engine();
         if (my !== liveToken || !alive || variation !== v) return;
         if (!engineSafe(base.fen()) || base.isGameOver()) { v.msg = base.isCheckmate() ? 'Checkmate.' : base.isGameOver() ? 'The game is over here.' : v.msg; v.pending = false; v.lines = []; renderCoach(); paint(); return; }
-        const r = await engine.go({ fen: base.fen(), depth: 12, multipv: 3 });
+        const r = await engine.go({ fen: base.fen(), depth: 14, movetime: 1800, multipv: 3 });
         if (my !== liveToken || !alive || variation !== v) return;
         const e = r.lines[0].white;
         v.evalNow = e;

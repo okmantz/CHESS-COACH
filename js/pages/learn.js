@@ -9,6 +9,9 @@ import { GLOSSARY } from '../data/glossary.js';
 import { Board } from '../board.js';
 import { currentRung, tier, progressFor } from '../ladder.js';
 import { openingCourse, courseProgress, lineStats } from '../learn/opening.js';
+import { openingHub } from '../learn/openinghub.js';
+import { FASTTRACK, fastTrackById } from '../data/fasttrack.js';
+import { gym } from '../learn/gym.js';
 import { guidedLesson, lessonDone } from '../learn/guided.js';
 import { lessonPlayer } from '../learn/lesson.js';
 import { sansText } from '../pvutil.js';
@@ -55,6 +58,8 @@ export default async function learnPage(view, ctx) {
     root.append(learnNav('endgames'), endgameList()); return;
   }
   if (track === 'middlegames') {
+    if (id === 'gym') { root.append(learnNav('middlegames')); teardown = gym(root, ctx, { back: toHub('middlegames') }); return () => teardown(); }
+    if (id && fastTrackById(id)) { const l = fastTrackById(id); const k = FASTTRACK.indexOf(l); const nx = FASTTRACK[k + 1]; teardown = lessonPlayer(root, ctx, { track: 'middlegames', lesson: l, back: toHub('middlegames'), backLabel: 'Middlegames', nextLesson: nx ? { name: nx.name, href: `#/learn/middlegames/${nx.id}` } : { name: 'Middlegame Gym', href: '#/learn/middlegames/gym' } }); return () => teardown(); }
     if (id && middlegameById(id)) { teardown = guidedLesson(root, ctx, 'middlegames', middlegameById(id), toHub('middlegames')); return () => teardown(); }
     root.append(learnNav('middlegames'), middlegameList()); return;
   }
@@ -116,7 +121,7 @@ export default async function learnPage(view, ctx) {
 
   function hub() {
     const op = OPENINGS.reduce((a, c) => a + courseProgress(c), 0) / OPENINGS.length;
-    const st = frac(STRATEGY, 'strategy'), bs = frac(BASICS, 'basics'), tc = frac(TACTICS, 'tactics'), en = frac(ENDGAMES, 'endgames'), mg = frac(MIDDLEGAMES, 'middlegames');
+    const st = frac(STRATEGY, 'strategy'), bs = frac(BASICS, 'basics'), tc = frac(TACTICS, 'tactics'), en = frac(ENDGAMES, 'endgames'), mg = frac(MIDDLEGAMES.concat(FASTTRACK), 'middlegames');
     const nextBasic = BASICS.find((b) => !done('basics', b.id));
     const tile = (ic, title, text, p, href, meta) => h('a.card.click.tile', { href },
       h('div.tile-top', h('div.course-icon', ic), p != null ? h('span.tile-pct', `${Math.round(p * 100)}%`) : null),
@@ -134,7 +139,7 @@ export default async function learnPage(view, ctx) {
         tile('⚔️', 'Tactics', 'Forks, pins, skewers, mating patterns and more.', tc, '#/learn/tactics', `${TACTICS.length} lessons`),
         tile('🧠', 'Strategy', 'Plans, pawns, files, outposts, king safety.', st, '#/learn/strategy', `${STRATEGY.length} lessons`),
         tile('📖', 'Openings', 'Every main variation, for White and Black.', op, '#/learn/openings', `${OPENINGS.length} openings`),
-        tile('🧭', 'Middlegames', 'Plans and typical structures, scored move by move.', mg, '#/learn/middlegames', `${MIDDLEGAMES.length} lessons`),
+        tile('🧭', 'Middlegames', 'Plans and typical structures, scored move by move.', mg, '#/learn/middlegames', `${MIDDLEGAMES.length + FASTTRACK.length} lessons`),
         tile('🏁', 'Endgames', 'Mating patterns, pawn and rook endings.', en, '#/learn/endgames', `${ENDGAMES.length} lessons`),
         tile('📚', 'Glossary', 'Plain-English terms with a board example.', null, '#/learn/glossary', `${GLOSSARY.length} terms`)),
       h('a.card.click.mt', { href: '#/coach-play' }, h('div.row.nowrapr', h('div.course-icon', '🤝'), h('div.grow', h('b', 'Play a game with Coach'), h('div.small.muted', 'Apply what you learn in a real game. The coach asks questions instead of giving answers, and builds a report of your habits.')), icon('right', 18))),
@@ -193,38 +198,20 @@ export default async function learnPage(view, ctx) {
     return h('div', crumb('Glossary', `${GLOSSARY.length} terms`), h('div.mb', searchInput('Search terms…', draw, q0)), list);
   }
 
-  function openingList() {
-    const f = { q: '', side: 'all', level: 'all' };
-    const list = h('div');
-    const sideSeg = h('div.seg.seg-fill'); const levelRow = h('div.chip-row');
-    const card = (c) => {
-      const p = courseProgress(c);
-      const started = c.lines.some((_, i) => lineStats(c.id, i).n > 0);
-      const first = c.lines[0] ? sansText(parseLine(c.lines[0].moves).map((x) => x.san), 6) : '';
-      return h('a.card.click.opening-card', { href: `#/learn/openings/${c.id}` },
-        h('div.row.nowrapr', h('div.course-icon', c.icon), h('div.grow', h('b', c.name), h('div.xs.muted.clamp2', c.tagline)), h('span.tag', c.level)),
-        first ? h('div.opening-moves', first) : null,
-        h('div.mt-s', progress(p, { height: 5 })), h('div.xs.muted.mt-s', `${c.lines.length} lines · ${Math.round(p * 100)}% learned${started && p < 1 ? ' · in progress' : ''}`));
-    };
-    const draw = () => {
-      sideSeg.replaceChildren(...[['all', 'All'], ['w', 'As White'], ['b', 'As Black']].map(([k, l]) => h('button', { class: k === f.side ? 'active' : '', onclick: () => { f.side = k; draw(); } }, l)));
-      levelRow.replaceChildren(...['all', 'Beginner', 'Intermediate', 'Advanced'].map((k) => h('button.learn-chip', { class: k === f.level ? 'active' : '', onclick: () => { f.level = k; draw(); } }, k === 'all' ? 'Any level' : k)));
-      const q = f.q.trim().toLowerCase();
-      const match = (c) => (f.side === 'all' || c.side === f.side) && (f.level === 'all' || c.level === f.level) && (!q || `${c.name} ${c.tagline} ${c.lines.map((l) => l.name).join(' ')}`.toLowerCase().includes(q));
-      const groups = [['w', 'Play as White'], ['b', 'Play as Black']].map(([side, label]) => {
-        const items = OPENINGS.filter((c) => c.side === side && match(c));
-        return items.length ? h('div.mb', h('h3', label), h('div.grid.g2', items.map(card))) : null;
-      }).filter(Boolean);
-      list.replaceChildren(...(groups.length ? groups : [h('div.card.flat.center', h('b', 'No openings match'), h('div.small.muted.mt-s', 'Clear the search or the filters.'))]));
-    };
-    draw();
-    return h('div', crumb('Openings', `${OPENINGS.length} openings`, OPENINGS.reduce((a, c) => a + courseProgress(c), 0) / OPENINGS.length),
-      h('div.filters', searchInput('Search openings — Sicilian, Italian, d4…', (v) => { f.q = v; draw(); }), sideSeg, levelRow), list);
-  }
+  function openingList() { return openingHub({ crumb, searchInput }); }
   function endgameList() {
     return h('div', crumb('Endgames', `${ENDGAMES.length} lessons`, frac(ENDGAMES, 'endgames')), ...ENDGAME_CATS.map((cat) => h('div.mb', h('h3', cat), h('div.grid.g2', ENDGAMES.filter((e) => e.cat === cat).map((e) => h('a.card.click.lesson-row', { href: `#/learn/endgames/${e.id}` }, h('div.row.nowrapr', h('div.course-icon', e.icon), h('div.grow', h('b', e.name), h('div.xs.muted.clamp2', e.summary)), done('endgames', e.id) ? h('span.tag.good', 'Done') : h('span.tag', e.level))))))));
   }
   function middlegameList() {
-    return h('div', crumb('Middlegames', `${MIDDLEGAMES.length} lessons`, frac(MIDDLEGAMES, 'middlegames')), h('div.grid.g2', MIDDLEGAMES.map((e) => h('a.card.click.lesson-row', { href: `#/learn/middlegames/${e.id}` }, h('div.row.nowrapr', h('div.course-icon', e.icon), h('div.grow', h('b', e.name), h('div.xs.muted.clamp2', e.summary)), done('middlegames', e.id) ? h('span.tag.good', 'Done') : h('span.tag', e.level))))));
+    const ftDone = FASTTRACK.filter((l) => done('middlegames', l.id)).length;
+    const nextFt = FASTTRACK.find((l) => !done('middlegames', l.id));
+    const g = store.get().gym || { rounds: 0, best: 0 };
+    const row = (e, href, tag) => h('a.card.click.lesson-row', { href }, h('div.row.nowrapr', h('div.course-icon', e.icon), h('div.grow', h('b', e.name), h('div.xs.muted.clamp2', e.summary)), done('middlegames', e.id) ? h('span.tag.good', 'Done') : h('span.tag', tag || e.level)));
+    return h('div', crumb('Middlegames', `${FASTTRACK.length + 1} fast-track steps · ${MIDDLEGAMES.length} scenarios`, frac(MIDDLEGAMES.concat(FASTTRACK), 'middlegames')),
+      h('div.card.mg-hero', h('div.eyebrow', 'Fast-Track'), h('h3.m0', 'Fix your middlegame in 6 short lessons'), h('p.muted.small', 'Learn one routine: what changed, worst piece, pawn-structure plan. Then drill it on real positions.'),
+        h('div.row', nextFt ? h('a.btn.primary', { href: `#/learn/middlegames/${nextFt.id}` }, ftDone ? `Continue: ${nextFt.name}` : 'Start lesson 1') : h('a.btn.primary', { href: '#/learn/middlegames/gym' }, 'Train in the Gym'), h('span.small.muted', `${ftDone}/${FASTTRACK.length} lessons`))),
+      h('h3', '1. Fast-Track lessons'), h('div.grid.g2.mb', FASTTRACK.map((l, i) => row(l, `#/learn/middlegames/${l.id}`, `${i + 1}`))),
+      h('h3', '2. Middlegame Gym'), h('div.grid.g2.mb', h('a.card.click.lesson-row', { href: '#/learn/middlegames/gym' }, h('div.row.nowrapr', h('div.course-icon', '🏋️'), h('div.grow', h('b', 'Middlegame Gym'), h('div.xs.muted', 'Endless real positions: tap your worst piece, pick the plan, play the move. Engine-judged with the reason.')), h('span.tag', `${g.rounds} rounds`))))),
+      h('h3', '3. Play it out: scenarios with the coach'), h('div.grid.g2', MIDDLEGAMES.map((e) => row(e, `#/learn/middlegames/${e.id}`))));
   }
 }

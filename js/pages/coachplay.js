@@ -182,7 +182,7 @@ function gameView(view, ctx, cfg, back) {
     hintLevel = 0; busy = false; board.setHint([]);
     board.setInteractive(true);
     const fen = chess.fen();
-    prefetch = engineSafe(fen) ? engine().then((e) => searchPosition(e, fen, { depth: 12, movetime: 900 })).catch(() => null) : null;
+    prefetch = engineSafe(fen) ? engine().then((e) => searchPosition(e, fen, { depth: 14, movetime: 1500 })).catch(() => null) : null;
     if (!guided) { checklist.classList.add('hidden'); return; }
     const last = chess.history({ verbose: true }).slice(-1)[0];
     const th = threatsAgainst(fen, me, { limit: 3 });
@@ -301,7 +301,7 @@ function gameView(view, ctx, cfg, back) {
         const e = await engine();
         const pf = prefetch ? await prefetch : null;
         if (!alive) return true;
-        j = await judgeMove(e, fen, uci, { lines: pf ? pf.lines : null, depth: 12, movetime: 1000 });
+        j = await judgeMove(e, fen, uci, { lines: pf ? pf.lines : null, depth: 14, movetime: 1500 });
       } catch (err) { j = null; }
     }
     if (!alive) return true;

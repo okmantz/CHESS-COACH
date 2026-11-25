@@ -1,3 +1,4 @@
+import { judgeMove } from '../judge.js';
 import { Chess } from '../../vendor/chess.js';
 import * as store from '../store.js';
 import { h, icon, toast, fmtTime } from '../ui.js';
@@ -259,9 +260,9 @@ function mistakeRunner(root, ctx, cfg, back) {
     if (uciOf(mm) === current.played) return { ok: false, same: true };
     try {
       const e = await ctx.engine(); if (!engineSafe(probe.fen())) return { ok: false };
-      const [a, b] = [await e.go({ fen: current.fen, depth: 12, multipv: 1 }), await e.go({ fen: probe.fen(), depth: 12, multipv: 1 })];
-      const col = current.color; const pov = (l) => { const w = l.white.mate != null ? (l.white.mate > 0 ? 100 : 0) : winPct(l.white); return col === 'w' ? w : 100 - w; };
-      return { ok: pov(a.lines[0]) - pov(b.lines[0]) <= 5, san: mm.san };
+      // best move and the tried move are compared INSIDE ONE search (never two separate searches)
+      const j = await judgeMove(e, current.fen, uciOf(mm), { depth: 14, movetime: 1500, verify: false });
+      return { ok: j.loss <= 5, san: mm.san };
     } catch (er) { return { ok: false }; }
   }
   ui.on(() => {}, () => {}, () => {});

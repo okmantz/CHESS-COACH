@@ -1,3 +1,4 @@
+import { debriefPanel } from '../debrief.js';
 import { Chess } from '../../vendor/chess.js';
 import * as store from '../store.js';
 import { h, icon, toast, modal, confirmDialog, avatar, fmtTime } from '../ui.js';
@@ -379,17 +380,20 @@ function gameView(view, ctx, cfg, resume, back, rematch) {
 
   function showResult(outcome, reason, rated, delta, newR, id, crowns = 0) {
     const rs = store.get().rating;
+    const deb = debriefPanel(ctx, id, { onNavigate: () => m && m.close() });
     const title = outcome === 'win' ? 'You won!' : outcome === 'draw' ? 'Draw' : 'You lost';
-    const m = modal(h('div.col', { style: { textAlign: 'center' } },
+    let m = null;
+    m = modal(h('div.col', { style: { textAlign: 'center' } },
       h('div', { style: { fontSize: '46px' } }, outcome === 'win' ? '🏆' : outcome === 'draw' ? '🤝' : '♟'),
       h('h2', title), h('div.muted', `by ${reason}`),
       outcome === 'win' ? crownBanner(crowns) : null,
       rated ? h('div.card.flat', h('div.big-num', { style: { color: delta >= 0 ? 'var(--good)' : 'var(--bad)' } }, `${delta >= 0 ? '+' : ''}${Math.round(delta)}`),
         h('div', `New rating: `, h('b', String(Math.round(newR))), rs.games <= PROVISIONAL_GAMES ? h('span.muted', ` · provisional (${rs.games}/${PROVISIONAL_GAMES})`) : null)) :
         h('div.small.muted', st.helped || st.undone ? 'Unrated — hints or takebacks were used.' : 'Unrated game.'),
+      deb.el,
       h('div.col', h('a.btn.primary.block', { href: `#/analyze?game=${id}`, onclick: () => m.close() }, icon('search', 18), 'Analyze with coach'),
         h('div.row', { style: { flexWrap: 'nowrap' } }, h('button.btn.grow', { onclick: () => { m.close(); back(); } }, 'New game'),
-          h('button.btn.grow', { onclick: () => { m.close(); rematch(); } }, 'Rematch')))), { dismissible: true });
+          h('button.btn.grow', { onclick: () => { m.close(); rematch(); } }, 'Rematch')))), { dismissible: true, onClose: () => deb.stop() });
   }
 
   /* --- boot --- */
