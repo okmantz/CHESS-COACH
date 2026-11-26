@@ -1,12 +1,12 @@
 import { debriefPanel } from '../debrief.js';
 import { Chess } from '../../vendor/chess.js';
 import * as store from '../store.js';
-import { h, icon, toast, modal, confirmDialog, avatar, fmtTime } from '../ui.js';
+import { h, icon, toast, modal, confirmDialog, avatar, fmtTime, pageHead } from '../ui.js';
 import { Board } from '../board.js';
 import { LEVELS, levelByN, botMove, botWantsToResign, botAcceptsDraw } from '../bot.js';
 import { updateRating, rankOf, PROVISIONAL_GAMES } from '../rating.js';
 import { legalTargetsFor, checkSquare, gameOverReason, uciOf, engineSafe } from '../chessutil.js';
-import { playerBar } from '../components.js';
+import { playerBar, moveList } from '../components.js';
 import { opponentStage, coachDock, moveStrip } from '../gameui.js';
 import { opponentPicker } from '../ladderui.js';
 import { roadStrip } from '../ladderui.js';
@@ -69,7 +69,7 @@ function setupView(resumable, onStart, onResume) {
   const colorBox = h('div.color-pick');
   const ratedRow = h('div');
 
-  const draw = () => {
+  let draw = () => {
     const cur = levelByN(cfg.level);
     /* opponent picker is built once below; here we only refresh the dependent rows */
     tcBox.replaceChildren(...TCS.map((t) => h('button', { class: t.id === cfg.tc ? 'active' : '', onclick: () => { cfg.tc = t.id; draw(); } }, t.label, h('small', t.sub))));
@@ -82,24 +82,38 @@ function setupView(resumable, onStart, onResume) {
   };
   draw();
 
+  const startNow = () => { localStorage.setItem('chesscoach.lastsetup', JSON.stringify(cfg)); onStart({ ...cfg, color: cfg.color === 'r' ? (Math.random() < 0.5 ? 'w' : 'b') : cfg.color }); };
+  const sumTitle = h('b'), sumSub = h('span');
+  const refreshSummary = () => {
+    const L = levelByN(cfg.level), t = TCS.find((x) => x.id === cfg.tc) || TCS[0];
+    sumTitle.textContent = `vs ${L.who} · ${L.elo}`;
+    sumSub.textContent = `${cfg.color === 'w' ? 'White' : cfg.color === 'b' ? 'Black' : 'Random colour'} · ${t.sub === 'Unlimited' ? 'No clock' : t.label} · ${cfg.rated ? 'Rated' : 'Casual'}`;
+  };
+  const baseDraw = draw;
+  draw = () => { baseDraw(); refreshSummary(); };
+  draw();
+
+  const mode = (cls, ic, title, text, href, badge) => h('a.mode-tile', { class: cls, href }, h('div.mode-ic', ic), h('div.mode-txt', h('b', title, badge ? h('span.tag.accent', badge) : null), h('span', text)), h('span.mode-go', icon('right', 18)));
+  const provisional = s.rating.games < PROVISIONAL_GAMES;
+
   root.append(h('div',
-    h('div.page-head', h('h1', 'Play')),
-    h('a.card.click.mb.coach-banner', { href: '#/coach-play' }, h('div.row.nowrapr', h('div.course-icon', '🤝'), h('div.grow', h('b', 'Play a game with Coach'), h('div.small.muted', 'A guided game: the coach asks you the right questions before you move, stops blunders, and reviews your habits afterwards.')), h('span.btn.primary', 'Start', icon('right', 16)))),
-    h('a.card.click.mb.coach-banner', { href: '#/two-player' }, h('div.row.nowrapr', h('div.course-icon', '👥'), h('div.grow', h('b', 'Play a friend — two players'), h('div.small.muted', 'Share one screen and play each other. The board can turn each move, and the coach can explain the moves with arrows.')), h('span.btn', 'Play', icon('right', 16)))),
-    resumable ? h('div.card.mb', { style: { borderColor: 'var(--accent)' } }, h('div.row', h('div.grow', h('b', 'Game in progress'), h('div.small.muted', `vs ${levelByN(resumable.level).who} · ${resumable.sans.length} moves`)),
-      h('button.btn.primary', { onclick: () => onResume(resumable) }, 'Resume'), h('button.btn.ghost', { onclick: () => { localStorage.removeItem(LIVE_KEY); location.hash = '#/play?new=1'; location.reload(); } }, 'Abandon'))) : null,
-    h('div.card.mb.row', h('div.rank-ring', { style: { '--p': rk.progress * 100, '--c': rk.color } }, h('div', h('b', String(rating)), h('span', rk.name))),
-      h('div.grow', h('b', s.rating.games < PROVISIONAL_GAMES ? 'Provisional rating' : 'Your rating'),
-        h('div.small.muted', s.rating.games < PROVISIONAL_GAMES ? `${PROVISIONAL_GAMES - s.rating.games} more rated games to settle your rating. It moves fast at first.` : rk.next ? `${Math.round(rk.next.min - s.rating.value)} points to ${rk.next.name}` : 'Top rank reached'),
-        h('div.small.muted', `${s.rating.games} rated games · peak ${Math.round(s.rating.peak)}`))),
-    h('div.game-setup-grid', { style: { display: 'grid', gap: '14px', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))' } },
-      h('div.col', h('div.card', h('div.card-title', icon('cpu', 18), 'Choose your opponent'), picker, h('div.mt', roadStrip()))),
-      h('div.col',
-        h('div.card', h('div.card-title', icon('user', 18), 'Play as'), colorBox),
-        h('div.card', h('div.card-title', icon('clock', 18), 'Time control'), tcBox),
-        h('div.card', ratedRow),
-        h('button.btn.primary.big.block', { onclick: () => { localStorage.setItem('chesscoach.lastsetup', JSON.stringify(cfg)); onStart({ ...cfg, color: cfg.color === 'r' ? (Math.random() < 0.5 ? 'w' : 'b') : cfg.color }); } }, icon('play', 18), 'Start game'))),
-  ));
+    pageHead('Play', { eyebrow: 'New game', sub: 'Pick an opponent, a colour and a clock — or let the coach guide you through a game.' }),
+    resumable ? h('div.resume-banner', h('span.stat-ic', icon('play', 20)), h('div.grow', h('b', 'Game in progress'), h('div.small.muted', `vs ${levelByN(resumable.level).who} · ${resumable.sans.length} moves played`)),
+      h('button.btn.primary', { onclick: () => onResume(resumable) }, 'Resume'), h('button.btn.ghost', { onclick: () => { localStorage.removeItem(LIVE_KEY); location.hash = '#/play?new=1'; location.reload(); } }, 'Abandon')) : null,
+    h('div.mode-grid',
+      mode('featured', '🤝', 'Play with Coach', 'A guided game: the coach asks the right questions before you move, stops blunders and reviews your habits.', '#/coach-play', 'Recommended'),
+      mode('', '👥', 'Play a friend', 'Share one screen. The board can turn each move, and the coach can explain with arrows.', '#/two-player')),
+    h('div.rating-card', h('div.rank-ring', { style: { '--p': rk.progress * 100, '--c': rk.color } }, h('div', h('b', String(rating)), h('span', rk.name))),
+      h('div.grow', h('b', provisional ? 'Provisional rating' : `${rk.name} · ${rating}`),
+        h('div.small.muted', provisional ? `${PROVISIONAL_GAMES - s.rating.games} more rated games to settle your rating. It moves fast at first.` : rk.next ? `${Math.round(rk.next.min - s.rating.value)} points to ${rk.next.name}` : 'Top rank reached'),
+        h('div.xs.faint', `${s.rating.games} rated game${s.rating.games === 1 ? '' : 's'} · peak ${Math.round(s.rating.peak)}`))),
+    h('div.setup-grid',
+      h('div.setup-col', h('div.card', h('div.card-title', h('span.step-no', '1'), 'Choose your opponent'), picker, h('div.mt', roadStrip()))),
+      h('div.setup-col',
+        h('div.card', h('div.card-title', h('span.step-no', '2'), 'Play as'), colorBox),
+        h('div.card', h('div.card-title', h('span.step-no', '3'), 'Time control'), tcBox),
+        h('div.card', ratedRow))),
+    h('div.start-bar', { style: { marginTop: '16px' } }, h('div.sb-sum', sumTitle, sumSub), h('button.btn.primary.big', { onclick: startNow }, icon('play', 18), 'Start game'))));
   return root;
 }
 
@@ -149,11 +163,12 @@ function gameView(view, ctx, cfg, resume, back, rematch) {
   const controls = h('div.actions-bar', bUndo, bHint, bWhy, bDraw, bResign, bFlip);
   const strip = moveStrip({ onPrev: () => goPly((view_ply ?? chess.history().length) - 1), onNext: () => goPly(view_ply == null ? null : view_ply + 1), onSelect: (i) => goPly(i + 1) });
 
+  const movesPanel = h('div.moves-panel', h('h4', 'Moves'), h('div.moves-body'));
   const layout = h('div.game-layout.fit',
     h('div.board-col',
       h('div.row.between.nowrapr.game-head', h('button.back', { onclick: leave, style: { margin: 0 } }, icon('left', 16), 'Setup'), h('div.row.tight', h('span.tag', st.rated ? 'Rated' : 'Casual'), h('span.tag', tc.sub === 'Unlimited' ? 'No clock' : tc.label))),
       stage.el, boardBox, bottom.el, status),
-    h('div.side-col', strip.el, controls, dock.el));
+    h('div.side-col', strip.el, movesPanel, controls, dock.el));
   view.replaceChildren(h('div.page.game', layout));
   document.body.classList.add('in-game');
   board.o.interactive = true;
@@ -167,6 +182,7 @@ function gameView(view, ctx, cfg, resume, back, rematch) {
     const hist = chess.history();
     const idx = view_ply == null ? hist.length - 1 : view_ply - 1;
     strip.setMoves(hist, idx);
+    { const ml = moveList(hist.map((san) => ({ san })), { current: idx, onSelect: (i) => goPly(i + 1) }); movesPanel.querySelector('.moves-body').replaceChildren(hist.length ? ml : h('div.faint.small', 'No moves yet \u2014 make your first move.')); if (hist.length) ml.scrollToCurrent(); }
     strip.setNav(hist.length > 0 && (view_ply == null || view_ply > 0), view_ply != null);
   }
 

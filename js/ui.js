@@ -74,6 +74,16 @@ const ICONS = {
   grid: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>',
   more: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
   lock: '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  sun: '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>',
+  moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
+  flame: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
+  users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  down: '<polyline points="6 9 12 15 18 9"/>',
+  arrowRight: '<line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>',
+  graduation: '<path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12v5c3 2 9 2 12 0v-5"/>',
+  shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  swords: '<polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" y1="19" x2="19" y2="13"/><line x1="16" y1="16" x2="20" y2="20"/><line x1="19" y1="21" x2="21" y2="19"/>',
   sparkle: '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.7 1.8L21.5 17.5l-1.8.7L19 20l-.7-1.8-1.8-.7 1.8-.7z"/>',
 };
 export function icon(name, size = 20, cls = '') {
@@ -89,7 +99,8 @@ export function icon(name, size = 20, cls = '') {
 export function toast(msg, kind = '', ms = 2600) {
   let root = $('#toasts');
   if (!root) { root = h('div#toasts'); document.body.append(root); }
-  const t = h('div.toast', { class: kind }, msg);
+  const ic = kind === 'good' ? 'check' : kind === 'bad' ? 'x' : kind === 'warn' ? 'info' : null;
+  const t = h('div.toast', { class: kind, role: 'status' }, ic ? h('span.toast-ic', icon(ic, 14)) : null, h('span', msg));
   root.append(t);
   requestAnimationFrame(() => t.classList.add('in'));
   setTimeout(() => { t.classList.remove('in'); setTimeout(() => t.remove(), 250); }, ms);
@@ -116,6 +127,22 @@ export function confirmDialog(message, { ok = 'Confirm', cancel = 'Cancel', dang
     const finish = (v) => { if (done) return; done = true; m.close(); resolve(v); };
     const m = modal(h('div', h('p.mb', message), h('div.row.end', h('button.btn.ghost', { onclick: () => finish(false) }, cancel), h('button.btn', { class: danger ? 'danger' : 'primary', onclick: () => finish(true) }, ok))), { title, onClose: () => { if (!done) { done = true; resolve(false); } } });
   });
+}
+
+/** Consistent page header: optional eyebrow / back link, title, subtitle and a right-hand action area. */
+export function pageHead(title, { eyebrow = '', sub = '', actions = null, back = null } = {}) {
+  return h('div.page-head',
+    h('div.ph-main',
+      back ? h('a.back', { href: back.href }, icon('left', 16), back.label) : null,
+      eyebrow ? h('div.eyebrow', eyebrow) : null,
+      h('h1', title),
+      sub ? h('p.ph-sub', sub) : null),
+    actions ? h('div.ph-actions', actions) : null);
+}
+
+/** Friendly empty state: icon, title, short explanation and an optional action. */
+export function emptyState(ic, title, text, action = null) {
+  return h('div.empty-state', h('div.es-icon', icon(ic, 26)), h('b', title), text ? h('p.muted', text) : null, action);
 }
 
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));

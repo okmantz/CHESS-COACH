@@ -1,5 +1,5 @@
 import * as store from '../store.js';
-import { h, icon, progress } from '../ui.js';
+import { h, icon, progress, pageHead } from '../ui.js';
 import { OPENINGS, courseById, parseLine } from '../data/openings.js';
 import { ENDGAMES, ENDGAME_CATS, endgameById } from '../data/endgames.js';
 import { MIDDLEGAMES, middlegameById } from '../data/middlegames.js';
@@ -151,7 +151,7 @@ export default async function learnPage(view, ctx) {
       results.replaceChildren(searchResults(q)); results.classList.remove('hidden'); main.classList.add('hidden');
     };
     return h('div',
-      h('div.page-head', h('h1', 'Learn'), h('span.tag.accent', `${total} courses & lessons`)),
+      pageHead('Learn', { eyebrow: 'Library', sub: `${total} courses and lessons \u2014 from your first moves to master-level endgames.` }),
       searchInput('Search lessons, openings, endgames, terms…', onSearch), h('div.mb'),
       results, main);
   }

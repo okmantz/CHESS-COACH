@@ -1,7 +1,7 @@
 import { judgeMove } from '../judge.js';
 import { Chess } from '../../vendor/chess.js';
 import * as store from '../store.js';
-import { h, icon, toast, fmtTime } from '../ui.js';
+import { h, icon, toast, fmtTime, pageHead } from '../ui.js';
 import { Board } from '../board.js';
 import { legalTargetsFor, checkSquare, uciOf, engineSafe } from '../chessutil.js';
 import { THEME_LABELS, TAGS } from '../coach.js';
@@ -47,7 +47,7 @@ function hubView(ctx) {
   const counts = {}; for (const p of withId) for (const t of p.t) counts[t] = (counts[t] || 0) + 1;
   const stat = (t) => { const x = s.puzzles.themes[t]; return x && x.attempts ? Math.round((100 * x.solved) / x.attempts) + '%' : '—'; };
   return h('div',
-    h('div.page-head', h('h1', 'Train')),
+    pageHead('Train', { eyebrow: 'Practice', sub: 'Sharpen your tactics with puzzles that adapt to you.' }),
     h('div.card.mb.grid.g4', statBox(s.puzzles.rating, 'Puzzle rating'), statBox(s.puzzles.solved, 'Solved'), statBox(s.puzzles.attempts ? Math.round((100 * s.puzzles.solved) / s.puzzles.attempts) + '%' : '—', 'Success rate'), statBox(s.puzzles.bestStreak, 'Best streak')),
     h('div.grid.g2.mb',
       h('a.card.click', { href: '#/train/mistakes', style: due.length ? { borderColor: 'var(--accent)' } : {} }, h('div.row.nowrapr', h('div.course-icon', icon('target', 22)), h('div.grow', h('b', 'Your own mistakes'), h('div.small.muted', s.mistakes.length ? `${due.length} due for review · ${s.mistakes.length} saved from your games` : 'Mistakes from your analyzed games show up here')), icon('right', 16))),

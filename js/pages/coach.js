@@ -1,5 +1,5 @@
 import * as store from '../store.js';
-import { h, icon, modal, fmtDate } from '../ui.js';
+import { h, icon, modal, fmtDate, pageHead } from '../ui.js';
 import { TAGS, THEME_LABELS } from '../coach.js';
 import { accuracyToRating } from '../analysis.js';
 import { ensureTodayPlan, currentProfile } from '../plan.js';
@@ -56,7 +56,7 @@ export default async function coachPage(view, ctx) {
   };
 
   view.replaceChildren(h('div.page',
-    h('div.page-head', h('h1', 'Coach'), h('div.grow'), h('button.btn.small', { onclick: () => { ensureTodayPlan(true); ctx.navigate('#/coach'); location.reload(); } }, icon('repeat', 14), 'Refresh plan')),
+    pageHead('Coach', { eyebrow: 'Your progress', sub: 'Rating, strengths and the habits your coach wants you to fix next.', actions: h('button.btn.small', { onclick: () => { ensureTodayPlan(true); ctx.navigate('#/coach'); location.reload(); } }, icon('repeat', 14), 'Refresh plan') }),
     nextStepCard(),
     h('div.card.mb.grid.g4', statBox(Math.round(s.rating.value), 'Rating', rk.name), statBox(estRating || '—', 'Performance estimate', avgAcc != null ? `from ${recent.length} analyzed games` : 'analyze games to unlock'), statBox(avgAcc != null ? avgAcc.toFixed(0) + '%' : '—', 'Avg accuracy'), statBox(s.puzzles.rating, 'Puzzle rating')),
     h('div.grid.g2.mb',

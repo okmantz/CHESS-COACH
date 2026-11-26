@@ -2,7 +2,7 @@
    Optional coach help: off · commentary on every move · commentary + hints (with arrows and a "why" card). */
 import { Chess } from '../../vendor/chess.js';
 import * as store from '../store.js';
-import { h, icon, toast, modal, confirmDialog, fmtTime } from '../ui.js';
+import { h, icon, toast, modal, confirmDialog, fmtTime, pageHead } from '../ui.js';
 import { Board } from '../board.js';
 import { legalTargetsFor, checkSquare, gameOverReason, uciOf, engineSafe } from '../chessutil.js';
 import { playerBar } from '../components.js';
@@ -64,7 +64,7 @@ function setupView(resumable, onStart, onResume) {
   };
   draw();
   root.append(h('div',
-    h('div.page-head', h('a.back', { href: '#/play' }, icon('left', 16), 'Play'), h('h1', 'Two players')),
+    pageHead('Two players', { back: { href: '#/play', label: 'Play' }, sub: 'Share one screen and play each other.' }),
     resumable ? h('div.card.mb', { style: { borderColor: 'var(--accent)' } }, h('div.row', h('div.grow', h('b', 'Game in progress'), h('div.small.muted', `${resumable.names[0]} vs ${resumable.names[1]} · ${resumable.sans.length} moves`)),
       h('button.btn.primary', { onclick: () => onResume(resumable) }, 'Resume'), h('button.btn.ghost', { onclick: () => { localStorage.removeItem(KEY); location.hash = '#/two-player?new=1'; location.reload(); } }, 'Abandon'))) : null,
     h('div.twop-setup',

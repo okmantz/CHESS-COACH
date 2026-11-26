@@ -1,5 +1,5 @@
 import * as store from '../store.js';
-import { h, icon, toast, avatar, confirmDialog, download, pickFile, readFile } from '../ui.js';
+import { h, icon, toast, avatar, confirmDialog, download, pickFile, readFile, pageHead } from '../ui.js';
 import { rankOf } from '../rating.js';
 import { Board } from '../board.js';
 import { avatarPicker } from '../avatars.js';
@@ -20,7 +20,7 @@ export default async function profilePage(view, ctx) {
     const nameIn = h('input', { type: 'text', value: s.profile.name, maxlength: 24, onchange: (e) => { store.update((st) => { st.profile.name = e.target.value.trim() || 'Player'; }); store.flush(); toast('Saved', 'good'); } });
     const bioIn = h('input', { type: 'text', value: s.profile.bio || '', maxlength: 80, placeholder: 'A line about you (optional)', onchange: (e) => { store.update((st) => { st.profile.bio = e.target.value; }); store.flush(); } });
     root.replaceChildren(
-      h('div.page-head', h('h1', 'Profile')),
+      pageHead('Profile', { eyebrow: 'You', sub: 'Your avatar, boards, pieces and preferences.' }),
       h('div.grid.g2',
         h('div.col',
           h('div.card', h('div.row.nowrapr', avatar(s.profile, 64), h('div.grow', h('h2', { style: { margin: 0 } }, s.profile.name), h('div.muted', `${Math.round(s.rating.value)} · ${rk.name}`), h('div.xs.faint', `${wins}W ${draws}D ${losses}L · puzzle rating ${s.puzzles.rating}`))),

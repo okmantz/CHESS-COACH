@@ -13,7 +13,7 @@ export default async function gamesPage(view, ctx) {
     const s = store.get();
     const list = s.games.filter((g) => filter === 'all' || (filter === 'play' && (g.source === 'play' || g.source === 'twoplayer')) || (filter === 'import' && g.source !== 'play' && g.source !== 'twoplayer') || (filter === 'analyzed' && g.review));
     root.replaceChildren(
-      h('div.page-head', h('h1', 'My games'), h('div.grow'),
+      h('div.page-head', h('div.ph-main', h('div.eyebrow', 'History'), h('h1', 'My games'), h('p.ph-sub', 'Every game you have played or imported, ready to analyze.')),
         h('button.btn', { onclick: async () => { const f = await pickFile('.pgn,.txt'); if (!f) return; const t = await readFile(f); const parts = t.includes('[Event ') ? splitPgn(t) : [t]; let ok = 0; for (const p of parts) { try { const g = parseGame(p); store.saveGame({ source: 'import', color: 'none', sans: g.sans, startFen: g.startFen, headers: g.headers, result: g.result, moves: g.sans.length, pgn: p }); ok++; } catch (e) { /* skip */ } } toast(`Imported ${ok} game${ok === 1 ? '' : 's'}`, ok ? 'good' : 'bad'); draw(); } }, icon('upload', 16), 'Import PGN'),
         s.games.length ? h('button.btn', { onclick: () => download('chess-coach-games.pgn', s.games.map((g) => g.pgn).filter(Boolean).join('\n\n')) }, icon('download', 16), 'Export all') : null),
       h('div.row.mb', [['all', 'All'], ['play', 'Played'], ['import', 'Imported'], ['analyzed', 'Analyzed']].map(([k, l]) => h('button.chip', { class: filter === k ? 'active' : '', onclick: () => { filter = k; draw(); } }, l))),

@@ -7,7 +7,7 @@
 // Afterwards a report shows habits and exactly what to practise, and says whether you passed the rung (see ladder.js).
 import { Chess } from '../../vendor/chess.js';
 import * as store from '../store.js';
-import { h, icon, confirmDialog, avatar, modal, tabs } from '../ui.js';
+import { h, icon, confirmDialog, avatar, modal, tabs, pageHead } from '../ui.js';
 import { Board } from '../board.js';
 import { levelByN, botMove } from '../bot.js';
 import { legalTargetsFor, checkSquare, gameOverReason, engineSafe } from '../chessutil.js';
@@ -91,7 +91,7 @@ function setupView(preset, onStart) {
     { id: 'road', label: 'The road', render: () => h('div', h('p.small.muted.mb', 'Ten opponents, ten steps: 600 → 2600. Open a rung to see what to learn, what to practise and exactly what you need to pass.'), roadMap({ selected: rung, onPlay: (n) => { cfg.level = n; picker.refresh(); drawRest(); tabsEl.show('play'); window.scrollTo(0, 0); } })) },
     { id: 'how', label: 'How it works', render: () => howItWorks() },
   ], { active: preset && preset.tab ? preset.tab : 'play' });
-  root.append(h('div.page-head', h('h1', 'Play with Coach')), goal, tabsEl);
+  root.append(pageHead('Play with Coach', { eyebrow: 'Guided games', sub: 'Climb the road from 600 to 2600 with your coach at your side.' }), goal, tabsEl);
   return root;
 }
 

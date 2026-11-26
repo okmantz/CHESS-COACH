@@ -1,6 +1,6 @@
 import { Chess } from '../../vendor/chess.js';
 import * as store from '../store.js';
-import { h, icon, toast, modal, tabs, avatar, progress, pickFile, readFile } from '../ui.js';
+import { h, icon, toast, modal, tabs, avatar, progress, pickFile, readFile, pageHead } from '../ui.js';
 import { Board, EvalBar } from '../board.js';
 import { parseGame, reviewGame, buildReview, attachCoach, compactReview, REVIEW_VERSION, DEPTHS, CLASSES, fmtEval, winPct, expandEval, buildPgn, START_FEN, accuracyToRating } from '../analysis.js';
 import { pvToSan, TAGS } from '../coach.js';
@@ -58,7 +58,7 @@ export default async function analyzePage(view, ctx) {
     };
     const library = s.games.slice(0, 6);
     const node = h('div.page',
-      h('div.page-head', h('h1', 'Analyze')),
+      pageHead('Analyze', { eyebrow: 'Review', sub: 'Understand every move with Stockfish and plain-English coaching.' }),
       h('div.card.live-hero.mb',
         h('div.live-hero-top', h('div.course-icon', '♟'),
           h('div.grow', h('h3', 'Analysis board'), h('p.small.muted', 'Play a game or set up any position. Stockfish analyses it live, draws its best moves as arrows and explains why each one works.'))),
